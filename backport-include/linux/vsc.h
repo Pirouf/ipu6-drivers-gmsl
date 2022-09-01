@@ -4,6 +4,15 @@
 #define _LINUX_VSC_H_
 
 #include <linux/types.h>
+#include <linux/module.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0))
+#include <linux/kprobes.h>
+#ifndef CONFIG_KPROBES
+# error "You need kprobes :("
+#endif
+#endif
+
 
 /**
  * @brief VSC camera ownership definition
@@ -48,6 +57,42 @@ struct vsc_camera_status {
 typedef void (*vsc_privacy_callback_t)(void *handle,
 				       enum vsc_privacy_status status);
 
+
+typedef int (*vsc_acquire_camera_sensor_t)(struct vsc_mipi_config *,
+					   vsc_privacy_callback_t,
+					   void *,
+					   struct vsc_camera_status *);
+typedef int (*vsc_release_camera_sensor_t)(struct vsc_camera_status *);
+
+static vsc_acquire_camera_sensor_t __p_vsc_acquire_camera_sensor = NULL;
+static vsc_release_camera_sensor_t __p_vsc_release_camera_sensor = NULL;
+
+static int init_vsc_symbols(void)
+{
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0))
+	typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
+	struct kprobe probe;
+	int ret;
+	kallsyms_lookup_name_t kallsyms_lookup_name;
+
+	memset(&probe, 0, sizeof(probe));
+	probe.symbol_name = "kallsyms_lookup_name";
+	ret = register_kprobe(&probe);
+	if (ret)
+		return ret;
+
+	kallsyms_lookup_name = (kallsyms_lookup_name_t) probe.addr;
+	unregister_kprobe(&probe);
+#endif
+
+	__p_vsc_acquire_camera_sensor =
+		(vsc_acquire_camera_sensor_t) kallsyms_lookup_name("vsc_acquire_camera_sensor");
+	__p_vsc_release_camera_sensor =
+		(vsc_release_camera_sensor_t) kallsyms_lookup_name("vsc_release_camera_sensor");
+
+	return 0;
+}
+
 /**
  * @brief Acquire camera sensor ownership to IPU
  *
@@ -62,10 +107,13 @@ typedef void (*vsc_privacy_callback_t)(void *handle,
  * @retval -EAGAIN VSC device not ready
  * @retval negative values for other errors
  */
-int vsc_acquire_camera_sensor(struct vsc_mipi_config *config,
-			      vsc_privacy_callback_t callback,
-			      void *handle,
-			      struct vsc_camera_status *status);
+static int vsc_acquire_camera_sensor(struct vsc_mipi_config *config,
+				      vsc_privacy_callback_t callback,
+				      void *handle,
+				      struct vsc_camera_status *status)
+{
+	return __p_vsc_acquire_camera_sensor(config, callback, handle, status);
+}
 
 /**
  * @brief Release camera sensor ownership
@@ -78,6 +126,11 @@ int vsc_acquire_camera_sensor(struct vsc_mipi_config *config,
  * @retval -EAGAIN VSC device not ready
  * @retval negative values for other errors
  */
-int vsc_release_camera_sensor(struct vsc_camera_status *status);
+static int vsc_release_camera_sensor(struct vsc_camera_status *status)
+{
+	return __p_vsc_release_camera_sensor(status);
+}
+
+MODULE_SOFTDEP("pre: intel_vsc");
 
 #endif

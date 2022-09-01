@@ -24,7 +24,9 @@ KERNEL_SRC := /lib/modules/$(shell uname -r)/build
 MODSRC := $(shell pwd)
 ccflags-y += -I$(MODSRC)/include/
 
-subdir-ccflags-y += -I$(src)/include/
+NOSTDINC_FLAGS += \
+	-I$(M)/backport-include/ \
+	-I$(M)/include/
 
 subdir-ccflags-$(CONFIG_INTEL_VSC) += \
         -DCONFIG_INTEL_VSC_MODULE=1
