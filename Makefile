@@ -2,6 +2,7 @@
 # Copyright (c) 2021 Intel Corporation.
 
 export EXTERNAL_BUILD = 1
+export CONFIG_INTEL_VSC = m
 
 export CONFIG_VIDEO_INTEL_IPU6 = m
 export CONFIG_VIDEO_INTEL_IPU_SOC = y
@@ -22,6 +23,16 @@ obj-y += drivers/media/platform/intel/
 KERNEL_SRC := /lib/modules/$(shell uname -r)/build
 MODSRC := $(shell pwd)
 ccflags-y += -I$(MODSRC)/include/
+
+subdir-ccflags-y += -I$(src)/include/
+
+subdir-ccflags-$(CONFIG_INTEL_VSC) += \
+        -DCONFIG_INTEL_VSC_MODULE=1
+subdir-ccflags-$(CONFIG_IPU_ISYS_BRIDGE) += \
+	-DCONFIG_IPU_ISYS_BRIDGE=1
+# subdir-ccflags-$(CONFIG_POWER_CTRL_LOGIC) += \
+# 	-DCONFIG_POWER_CTRL_LOGIC_MODULE=1
+subdir-ccflags-y += $(subdir-ccflags-m)
 
 all:
 	$(MAKE) -C $(KERNEL_SRC) M=$(MODSRC) modules
