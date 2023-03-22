@@ -2519,6 +2519,7 @@ static int start_stream_firmware(struct ipu_isys_video *av,
 	if (rval < 0) {
 		dev_err(dev, "can't open stream (%d)\n", rval);
 		ipu_put_fw_msg_buf(ip, (uintptr_t)stream_cfg);
+		rval = -EIO;
 		goto out_put_stream_handle;
 	}
 
@@ -2611,6 +2612,8 @@ static int start_stream_firmware(struct ipu_isys_video *av,
 			}
 		}
 	}
+	dev_dbg(dev, "start stream: complete\n");
+
 	dev_dbg(dev, "start stream: complete\n");
 
 	return 0;
