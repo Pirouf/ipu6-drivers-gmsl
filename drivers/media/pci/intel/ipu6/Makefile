@@ -43,3 +43,4 @@ ccflags-y += -I$(srcpath)/$(src)/../../../../../include/
 ccflags-y += -I$(srcpath)/$(src)/psys/
 ccflags-y += -I$(srcpath)/$(src)/../
 ccflags-y += -I$(srcpath)/$(src)/
+ccflags-y += -I$(M)/backport-include/ -I$(M)/include/
