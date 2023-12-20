@@ -5,6 +5,14 @@ ifneq ($(EXTERNAL_BUILD), 1)
 srcpath := $(srctree)
 endif
 
+CFLAGS_../ipu-buttress.o +=   -DDEBUG
+CFLAGS_../ipu-bus.o +=   -DDEBUG
+CFLAGS_../ipu.o +=   -DDEBUG
+CFLAGS_../ipu-cpd.o +=   -DDEBUG
+CFLAGS_../ipu-fw-com.o +=   -DDEBUG
+CFLAGS_ipu6.o +=   -DDEBUG
+CFLAGS_intel-ipu6.o +=   -DDEBUG
+
 ccflags-y += -DIPU_HAS_S2M -DIPU_TPG_FRAME_SYNC \
 		-DIPU_ISYS_GPC -DI2C_DYNAMIC
 ccflags-y += -DIPU_ISYS_RESET

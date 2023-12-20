@@ -682,6 +682,13 @@ static int ipu_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto out_ipu_bus_del_devices;
 	}
 
+	dev_dbg(&isp->pdev->dev, "CONFIG_VIDEO_INTEL_IPU_USE_PLATFORMDATA=%d\n",
+		IS_ENABLED(CONFIG_VIDEO_INTEL_IPU_USE_PLATFORMDATA));
+	dev_dbg(&isp->pdev->dev, "CONFIG_VIDEO_INTEL_IPU_PDATA_DYNAMIC_LOADING=%d\n",
+		IS_ENABLED(CONFIG_VIDEO_INTEL_IPU_PDATA_DYNAMIC_LOADING));
+	dev_dbg(&isp->pdev->dev, "CONFIG_INTEL_IPU6_ACPI=%d\n",
+		IS_ENABLED(CONFIG_INTEL_IPU6_ACPI));
+
 #if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU_USE_PLATFORMDATA)
 #if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU_PDATA_DYNAMIC_LOADING)
 	rval = request_firmware(&isp->spdata_fw, IPU_SPDATA_NAME, &pdev->dev);

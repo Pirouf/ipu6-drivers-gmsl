@@ -21,7 +21,7 @@ intel-ipu6-psys-objs			+= ipu-psys.o \
 obj-$(CONFIG_VIDEO_INTEL_IPU6)		+= intel-ipu6-psys.o
 
 ifeq ($(is_kernel_lt_6_10), 1)
-ccflags-y += -I$(src)/../ipu6/
+ccflags-y += -I$(srcpath)/$(src)/../ipu6/
 endif
-ccflags-y += -I$(src)/../
-ccflags-y += -I$(src)/../../
+ccflags-y += -I$(srcpath)/$(src)/../
+ccflags-y += -I$(srcpath)/$(src)/../../

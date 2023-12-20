@@ -8,7 +8,7 @@ endif
 ccflags-y += -I$(srcpath)/$(src)/../../../include/
 ccflags-y += -DCONFIG_VIDEO_D4XX_SERDES -DPLATFORM_AXIOMTEK
 ifeq ($(CONFIG_VIDEO_INTEL_IPU6), m)
-	ccflags-y += -DCONFIG_VIDEO_INTEL_IPU6
+	ccflags-y += -DCONFIG_VIDEO_INTEL_IPU6=1
 endif
 
 obj-$(CONFIG_VIDEO_AR0234) += ar0234.o
