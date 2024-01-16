@@ -343,8 +343,16 @@ static int media_pipeline_enumerate_by_vc_cb(
 	struct media_pipeline *pipe = &ip->pipe;
 	struct media_entity *entity = &av->vdev.entity;
 	struct media_device *mdev = entity->graph_obj.mdev;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	struct media_graph *graph = &pipe->graph;
+#else
+	struct media_graph graph;
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 	struct media_pad *source_pad = media_entity_remote_pad(&av->pad);
+#else
+	struct media_pad *source_pad = media_pad_remote_pad_first(&av->pad);
+#endif
 	unsigned int pad_id;
 	struct v4l2_subdev *sd;
 	struct v4l2_control ct = {
@@ -362,7 +370,11 @@ static int media_pipeline_enumerate_by_vc_cb(
 	pad_id = source_pad->index;
 	mutex_lock(&mdev->graph_mutex);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	ret = media_graph_walk_init(&pipe->graph, mdev);
+#else
+	ret = media_graph_walk_init(&graph, mdev);
+#endif
 	if (ret)
 		goto error_graph_walk_start_enum;
 
@@ -373,13 +385,22 @@ static int media_pipeline_enumerate_by_vc_cb(
 		goto error_graph_walk_start_enum;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	media_graph_walk_start(&pipe->graph, entity);
 	while ((entity = media_graph_walk_next(graph))) {
+#else
+	media_graph_walk_start(&graph, entity);
+	while ((entity = media_graph_walk_next(&graph))) {
+#endif
 		/*
 		 * If entity's pipe is not null and it is video device, it has
 		 * be enabled.
 		 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 		if (entity->pipe && is_media_entity_v4l2_video_device(entity))
+#else
+		if (entity->pads[0].pipe && is_media_entity_v4l2_video_device(entity))
+#endif
 			continue;
 
 		sd = media_entity_to_v4l2_subdev(entity);
@@ -406,7 +427,11 @@ static int media_pipeline_enumerate_by_vc_cb(
 
 	av->enum_link_state = IPU_ISYS_LINK_STATE_DONE;
 error_graph_walk_start_enum:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	media_graph_walk_cleanup(graph);
+#else
+	media_graph_walk_cleanup(&graph);
+#endif
 	mutex_unlock(&mdev->graph_mutex);
 	kfree(ip);
 	return ret;
@@ -432,7 +457,11 @@ static int video_open(struct file *file)
 		goto out_v4l2_fh_release;
 
 	if (av->enum_link_state == IPU_ISYS_LINK_STATE_ENABLED &&
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 			media_entity_remote_pad(&av->pad)) {
+#else
+			media_pad_remote_pad_first(&av->pad)) {
+#endif
 		media_pipeline_enumerate_by_vc_cb(av,
 				ipu_isys_inherit_ctrls, NULL);
 	}
@@ -574,7 +603,11 @@ static int ipu_isys_get_parm(struct file *file, void *fh,
 		return 0;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 	if (media_entity_remote_pad(&av->pad))
+#else
+	if (media_pad_remote_pad_first(&av->pad))
+#endif
 		ret = media_pipeline_enumerate_by_vc_cb(av,
 				ipu_isys_get_parm_subdev, &fi);
 	else
@@ -599,7 +632,11 @@ static int ipu_isys_set_parm(struct file *file, void *fh,
 	fi.interval.numerator = a->parm.capture.timeperframe.numerator;
 	fi.interval.denominator = a->parm.capture.timeperframe.denominator;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 	if (media_entity_remote_pad(&av->pad))
+#else
+	if (media_pad_remote_pad_first(&av->pad))
+#endif
 		ret = media_pipeline_enumerate_by_vc_cb(av,
 			ipu_isys_set_parm_subdev, &fi);
 
@@ -1052,7 +1089,11 @@ static int vidioc_s_fmt_vid_cap_mplane(struct file *file, void *fh,
 				       struct v4l2_format *f)
 {
 	struct ipu_isys_video *av = video_drvdata(file);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 	struct media_pad *source_pad = media_entity_remote_pad(&av->pad);
+#else
+	struct media_pad *source_pad = media_pad_remote_pad_first(&av->pad);
+#endif
 	struct media_pad *remote_pad = source_pad;
 	struct v4l2_subdev *sd = NULL;
 	struct ipu_isys_pipeline *ip;
@@ -1123,7 +1164,11 @@ static int vidioc_s_fmt_vid_cap_mplane(struct file *file, void *fh,
 		if (ret)
 			return -EINVAL;
 	} while ((remote_pad =
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 			media_entity_remote_pad(&remote_pad->entity->pads[0])));
+#else
+			media_pad_remote_pad_first(&remote_pad->entity->pads[0])));
+#endif
 	}
 	return 0;
 }
@@ -1261,7 +1306,11 @@ static int link_validate(struct media_link *link)
 	struct ipu_isys_pipeline *ip =
 		to_ipu_isys_pipeline(media_entity_pipeline(&av->vdev.entity));
 	struct v4l2_subdev *sd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 	struct media_pad *source_pad = media_entity_remote_pad(&av->pad);
+#else
+	struct media_pad *source_pad = media_pad_remote_pad_first(&av->pad);
+#endif
 	struct v4l2_subdev_format fmt = { 0 };
 	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 
