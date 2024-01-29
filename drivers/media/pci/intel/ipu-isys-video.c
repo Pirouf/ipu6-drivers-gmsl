@@ -568,7 +568,11 @@ static int ipu_isys_get_parm_subdev(struct ipu_isys_video *av,
 	int ret = 0;
 	struct v4l2_subdev_frame_interval *fi =
 		(struct v4l2_subdev_frame_interval *)data;
-	ret = v4l2_subdev_call(sd, video, g_frame_interval, fi);
+	/* v4l2_subdev_call doesn't call, access directly
+	ret = v4l2_subdev_call(sd, video, s_frame_interval, fi);
+	*/
+	if (sd && sd->ops && sd->ops->video && sd->ops->video->g_frame_interval)
+		ret = sd->ops->video->g_frame_interval(sd, fi);
 
 	return ret;
 }
