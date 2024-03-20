@@ -340,14 +340,15 @@ static int media_pipeline_enumerate_by_vc_cb(
 	int ret = -ENOLINK;
 	struct ipu_isys_pipeline *ip = kmalloc(
 				sizeof(struct ipu_isys_pipeline), 128);
-	struct media_pipeline *pipe = &ip->pipe;
-	struct media_entity *entity = &av->vdev.entity;
-	struct media_device *mdev = entity->graph_obj.mdev;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+	struct media_pipeline *pipe = &ip->pipe;
 	struct media_graph *graph = &pipe->graph;
 #else
+	// struct media_pipeline *pipe = av->pad.pipe;
 	struct media_graph graph;
 #endif
+	struct media_entity *entity = &av->vdev.entity;
+	struct media_device *mdev = entity->graph_obj.mdev;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 	struct media_pad *source_pad = media_entity_remote_pad(&av->pad);
 #else
@@ -369,7 +370,6 @@ static int media_pipeline_enumerate_by_vc_cb(
 
 	pad_id = source_pad->index;
 	mutex_lock(&mdev->graph_mutex);
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	ret = media_graph_walk_init(&pipe->graph, mdev);
 #else
@@ -384,7 +384,6 @@ static int media_pipeline_enumerate_by_vc_cb(
 			"query sensor info failed\n");
 		goto error_graph_walk_start_enum;
 	}
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	media_graph_walk_start(&pipe->graph, entity);
 	while ((entity = media_graph_walk_next(graph))) {
@@ -398,11 +397,12 @@ static int media_pipeline_enumerate_by_vc_cb(
 		 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 		if (entity->pipe && is_media_entity_v4l2_video_device(entity))
-#else
-		if (entity->pads[0].pipe && is_media_entity_v4l2_video_device(entity))
-#endif
 			continue;
-
+#else
+		if (entity->pads[0].pipe &&
+		    is_media_entity_v4l2_video_device(entity))
+			continue;
+#endif
 		sd = media_entity_to_v4l2_subdev(entity);
 		/* pre-filter sub-devices */
 		if (!sd)
@@ -458,10 +458,11 @@ static int video_open(struct file *file)
 
 	if (av->enum_link_state == IPU_ISYS_LINK_STATE_ENABLED &&
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
-			media_entity_remote_pad(&av->pad)) {
+			media_entity_remote_pad(&av->pad)
 #else
-			media_pad_remote_pad_first(&av->pad)) {
+			media_pad_remote_pad_first(&av->pad)
 #endif
+			) {
 		media_pipeline_enumerate_by_vc_cb(av,
 				ipu_isys_inherit_ctrls, NULL);
 	}
