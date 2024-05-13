@@ -2740,8 +2740,8 @@ module_exit(ipu_psys_exit);
 
 MODULE_AUTHOR("Bingbu Cao <bingbu.cao@intel.com>");
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Intel IPU6 processing system driver");
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+MODULE_DESCRIPTION("Intel ipu processing system driver");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) || IS_ENABLED(CONFIG_DRM_I915_HAS_SRIOV)
 MODULE_IMPORT_NS(DMA_BUF);
 MODULE_IMPORT_NS(INTEL_IPU6);
 #else

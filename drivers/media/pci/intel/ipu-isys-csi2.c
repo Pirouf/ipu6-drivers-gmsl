@@ -348,20 +348,53 @@ static int csi2_link_validate(struct media_link *link)
 	struct media_pipeline *mp;
 	struct v4l2_subdev *source_sd;
 	struct v4l2_subdev *sink_sd;
+	struct v4l2_subdev_format fmt = { 0 };
+	int rval = 0;
 
 	mp = media_entity_pipeline(link->sink->entity);
 	if (!link->sink->entity || !link->source->entity || !mp)
 		return -EINVAL;
 	csi2 =
 	    to_ipu_isys_csi2(media_entity_to_v4l2_subdev(link->sink->entity));
+
 	ip = to_ipu_isys_pipeline(mp);
+	if (!ip)
+		return -EINVAL;
+	if (ip->external && ip->external->entity) {
+		if (ip->external == link->source) {
+			dev_dbg(&csi2->isys->adev->dev,
+				"%s:%d: ip external entity: %s link source: %s ip->vc: %d proceed with validation\n",
+				__func__,  __LINE__, ip->external->entity->name, link->source->entity->name, ip->vc);
+		} else {
+			dev_dbg(&csi2->isys->adev->dev,
+				"%s:%d: ip external entity: %s link source: %s ip->vc: %d skip validation\n",
+				__func__,  __LINE__, ip->external->entity->name, link->source->entity->name, ip->vc);
+			return 0;
+		}
+	}
 	csi2->receiver_errors = 0;
 	ip->csi2 = csi2;
 	ipu_isys_video_add_capture_done(ip, csi2_capture_done);
 	source_sd = media_entity_to_v4l2_subdev(link->source->entity);
 	sink_sd = media_entity_to_v4l2_subdev(link->sink->entity);
+
 	if (!source_sd)
 		return -ENODEV;
+	/* source is external entity, get it's format */
+	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	fmt.pad = CSI2_PAD_SINK;
+	rval = v4l2_subdev_call(source_sd, pad, get_fmt, NULL, &fmt);
+	if (rval)
+		return rval;
+
+	/* set csi2 format for the same as external entity */
+	rval = v4l2_subdev_call(sink_sd, pad, set_fmt, NULL, &fmt);
+	if (rval)
+		return rval;
+
+	rval = v4l2_subdev_link_validate(link);
+	if (rval)
+		return rval;
 
 	if (strncmp(source_sd->name, IPU_ISYS_ENTITY_PREFIX,
 		    strlen(IPU_ISYS_ENTITY_PREFIX)) != 0) {

@@ -648,13 +648,11 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 
 		/* serdes_subdev_info */
 		serdes_sdinfo[i].rx_port = i;
-		if (!strcmp(sensor_name, D457_NAME)) {
-			if (i == 0)
-				serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr;
-			else
-				serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr_2;
-		} else
-			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr + i;
+		if (!strcmp(sensor_name, D457_NAME))
+			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr;
+		else
+			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr +
+			serdes_info.sensor_num + i;
 
 		serdes_sdinfo[i].phy_i2c_addr = serdes_info.phy_i2c_addr;
 		snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
@@ -720,7 +718,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 
 		/* use ascii */
 		if (!strcmp(sensor_name, D457_NAME) && port >= 0) {
-			pdata->suffix = serdes_info.deser_num + SUFFIX_BASE + 1;
+			pdata->suffix = port + SUFFIX_BASE + 1;
 			pr_info("IPU6 ACPI: create %s %c, on deserializer port %d",
 				sensor_name, pdata->suffix, serdes_info.deser_num);
 		} else if (port >= 0) {
@@ -763,14 +761,15 @@ static void set_serdes_info(struct device *dev, const char *sensor_name,
 	i = 1;
 	/* serializer mapped addr */
 	serdes_info.ser_map_addr = cam_data->i2c[i++].addr;
+
+	/* sensor mapped addr */
+	serdes_info.sensor_map_addr = cam_data->i2c[i++].addr;
+
 	if (!strcmp(sensor_name, D457_NAME) && serdes_info.i2c_num == SENSOR_2X_I2C) {
 		/* 2nd group of mapped addr */
 		serdes_info.ser_map_addr_2 = cam_data->i2c[i++].addr;
 		serdes_info.sensor_map_addr_2 = cam_data->i2c[i++].addr;
 	}
-
-	/* sensor mapped addr */
-	serdes_info.sensor_map_addr = cam_data->i2c[i++].addr;
 
 	if (!strcmp(serdes_name, TI960_NAME))
 		serdes_info.gpio_powerup_seq = TI960_MAX_GPIO_POWERUP_SEQ;

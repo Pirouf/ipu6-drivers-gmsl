@@ -3,7 +3,7 @@
 is_kernel_lt_6_10 = $(shell if [ $$(printf "6.10\n$(KERNELVERSION)" | sort -V | head -n1) != "6.10" ]; then echo 1; fi)
 ifeq ($(is_kernel_lt_6_10), 1)
 ifneq ($(EXTERNAL_BUILD), 1)
-src := $(srctree)/$(src)
+srcpath := $(srctree)
 endif
 endif
 
