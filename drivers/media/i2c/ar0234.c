@@ -1882,10 +1882,12 @@ static int ar0234_set_stream(struct v4l2_subdev *sd, int enable)
 }
 
 static int ar0234_g_frame_interval(struct v4l2_subdev *sd,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+/* pad ops */
+		struct v4l2_subdev_state *sd_state,
 		struct v4l2_subdev_frame_interval *fival)
 #else
-		struct v4l2_subdev_state *sd_state,
+/* Video ops */
 		struct v4l2_subdev_frame_interval *fival)
 #endif
 {
@@ -2128,7 +2130,7 @@ static int ar0234_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 
 static const struct v4l2_subdev_video_ops ar0234_video_ops = {
 	.s_stream = ar0234_set_stream,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
 	.g_frame_interval = ar0234_g_frame_interval,
 #endif
 };
@@ -2139,7 +2141,7 @@ static const struct v4l2_subdev_pad_ops ar0234_pad_ops = {
 	.enum_mbus_code = ar0234_enum_mbus_code,
 	.enum_frame_size = ar0234_enum_frame_size,
 	.enum_frame_interval = ar0234_enum_frame_interval,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 9, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
 	.get_frame_interval = ar0234_g_frame_interval,
 #endif
 };

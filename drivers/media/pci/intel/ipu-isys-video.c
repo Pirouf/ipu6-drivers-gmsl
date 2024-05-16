@@ -569,11 +569,17 @@ static int ipu_isys_get_parm_subdev(struct ipu_isys_video *av,
 	int ret = 0;
 	struct v4l2_subdev_frame_interval *fi =
 		(struct v4l2_subdev_frame_interval *)data;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+	struct media_pad *pad = other_pad(&av->vdev.entity.pads[0]);
+	ret = v4l2_subdev_call_state_active(sd, pad,
+					    get_frame_interval, fi);
+#else
 	/* v4l2_subdev_call doesn't call, access directly
 	ret = v4l2_subdev_call(sd, video, s_frame_interval, fi);
 	*/
 	if (sd && sd->ops && sd->ops->video && sd->ops->video->g_frame_interval)
 		ret = sd->ops->video->g_frame_interval(sd, fi);
+#endif
 
 	return ret;
 }
@@ -584,11 +590,17 @@ static int ipu_isys_set_parm_subdev(struct ipu_isys_video *av,
 	int ret = 0;
 	struct v4l2_subdev_frame_interval *fi =
 		(struct v4l2_subdev_frame_interval *)data;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+	struct media_pad *pad = other_pad(&av->vdev.entity.pads[0]);
+	ret = v4l2_subdev_call_state_active(sd, pad,
+					    set_frame_interval, fi);
+#else
 	/* v4l2_subdev_call doesn't call, access directly */
 	// ret = v4l2_subdev_call(sd, video, s_frame_interval, fi);
 
 	if (sd && sd->ops && sd->ops->video && sd->ops->video->s_frame_interval)
 		ret = sd->ops->video->s_frame_interval(sd, fi);
+#endif
 
 	return ret;
 }
