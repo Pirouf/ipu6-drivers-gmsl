@@ -10,6 +10,7 @@ CFLAGS_../ipu-bus.o +=   -DDEBUG
 CFLAGS_../ipu.o +=   -DDEBUG
 CFLAGS_../ipu-cpd.o +=   -DDEBUG
 CFLAGS_../ipu-fw-com.o +=   -DDEBUG
+CFLAGS_ipu6-isys-dwc-phy.o +=   -DDEBUG
 CFLAGS_ipu6.o +=   -DDEBUG
 CFLAGS_intel-ipu6.o +=   -DDEBUG
 
