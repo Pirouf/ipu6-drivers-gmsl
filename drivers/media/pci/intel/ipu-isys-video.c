@@ -2151,6 +2151,7 @@ static int media_pipeline_walk_by_vc(struct ipu_isys_video *av,
 	struct media_pad *source_pad = media_pad_remote_pad_first(&av->pad);
 	unsigned int pad_id;
 	bool is_vc = false;
+	unsigned int av_pad_id;
 
 	if (!source_pad) {
 		dev_err(entity->graph_obj.mdev->dev,
@@ -2164,6 +2165,7 @@ static int media_pipeline_walk_by_vc(struct ipu_isys_video *av,
 		return 0;
 	}
 
+	av_pad_id = source_pad->index;
 	is_vc = is_support_vc(source_pad, ip);
 	if (is_vc) {
 		ret = ipu_isys_query_sensor_info(source_pad, ip);
@@ -2219,6 +2221,20 @@ static int media_pipeline_walk_by_vc(struct ipu_isys_video *av,
 
 			if (entity_vc != ip->vc)
 				continue;
+
+			if (ip->asv[i].substream == av_pad_id)
+				dev_dbg(entity->graph_obj.mdev->dev,
+					"METADATA VC :%d substream:%d, srcpad:%d\n",
+					entity_vc, ip->asv[i].substream, av_pad_id);
+
+			if ((ip->asv[i].substream != (av_pad_id - 1)) &&
+				(ip->asv[i].substream != av_pad_id)) {
+				dev_dbg(entity->graph_obj.mdev->dev,
+					"SKIP VC:%d substream:%d, srcpad:%d\n",
+					entity_vc, ip->asv[i].substream, av_pad_id);
+				continue;
+			}
+
 		}
 
 		entity->pads[0].pipe = pipe;
