@@ -358,7 +358,7 @@ int max9295_setup_control(struct device *dev)
 	}
 
 	/* delay to settle link */
-	msleep(100);
+	msleep(150);
 
 	for (i = 0; i < ARRAY_SIZE(addr_offset); i += 3) {
 		if ((g_ctx->ser_reg << 1) == addr_offset[i]) {
@@ -392,7 +392,7 @@ int max9295_setup_control(struct device *dev)
 
 	max9295_write_reg(dev, MAX9295_I2C4_ADDR, (g_ctx->sdev_reg << 1));
 	max9295_write_reg(dev, MAX9295_I2C5_ADDR, (g_ctx->sdev_def << 1));
-	msleep(100);
+	msleep(150);
 	max9295_write_reg(dev, MAX9295_SRC_PWDN_ADDR, MAX9295_PWDN_GPIO);
 	max9295_write_reg(dev, MAX9295_SRC_CTRL_ADDR, MAX9295_RESET_SRC);
 	max9295_write_reg(dev, MAX9295_SRC_OUT_RCLK_ADDR, MAX9295_SRC_RCLK);
