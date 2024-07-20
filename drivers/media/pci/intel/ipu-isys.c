@@ -392,8 +392,10 @@ static int isys_register_ext_subdev(struct ipu_isys *isys,
 		 bus);
 
 	if (sd_info->csi2) {
-		dev_info(&isys->adev->dev, "sensor device on CSI port: %d\n",
-			 sd_info->csi2->port);
+		dev_info(&isys->adev->dev, "sensor device on CSI port: %d/%d, isys %p\n",
+			 sd_info->csi2->port,
+			 isys->pdata->ipdata->csi2.nports,
+			 isys->csi2[sd_info->csi2->port].isys);
 		if (sd_info->csi2->port >= isys->pdata->ipdata->csi2.nports ||
 		    !isys->csi2[sd_info->csi2->port].isys) {
 			dev_warn(&isys->adev->dev, "invalid csi2 port %u\n",
@@ -561,15 +563,14 @@ static int isys_register_subdevices(struct ipu_isys *isys)
 	}
 
 	for (i = 0; i < csi2->nports; i++) {
-#if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU_USE_PLATFORMDATA)
-		if (!test_bit(i, csi2_enable))
-			continue;
-#endif
 		rval = ipu_isys_csi2_init(&isys->csi2[i], isys,
 					  isys->pdata->base +
 					  csi2->offsets[i], i);
 		if (rval)
 			goto fail;
+
+		dev_info(&isys->adev->dev,
+			 "csi2[%u].isys=%p port initialized\n", i, isys);
 
 		isys->isr_csi2_bits |= IPU_ISYS_UNISPART_IRQ_CSI2(i);
 	}
