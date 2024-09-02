@@ -22,7 +22,7 @@
 #include "ipu-isys.h"
 #endif
 
-#define MAX_ACPI_SENSOR_NUM	4
+#define MAX_ACPI_SENSOR_NUM	6
 #define MAX_ACPI_I2C_NUM	12
 #define MAX_ACPI_GPIO_NUM	12
 
