@@ -160,6 +160,7 @@ struct ipu_isys {
 	struct mutex reset_mutex;
 	bool in_reset;
 	bool in_stop_streaming;
+	int in_buf_queue;
 };
 
 struct isys_fw_msgs {

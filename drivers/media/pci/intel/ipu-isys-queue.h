@@ -153,6 +153,7 @@ ipu_isys_buf_calc_sequence_time(struct ipu_isys_buffer *ib,
 void ipu_isys_queue_buf_done(struct ipu_isys_buffer *ib);
 void ipu_isys_queue_buf_ready(struct ipu_isys_pipeline *ip,
 			      struct ipu_fw_isys_resp_info_abi *info);
+void ipu_isys_queue_buf_flush(struct ipu_isys_pipeline *ip);
 void
 ipu_isys_queue_short_packet_ready(struct ipu_isys_pipeline *ip,
 				  struct ipu_fw_isys_resp_info_abi *inf);

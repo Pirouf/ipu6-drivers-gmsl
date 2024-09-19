@@ -387,6 +387,7 @@ error:
 	if (!list_empty(&bl->head))
 		ipu_isys_buffer_list_queue(bl,
 					   IPU_ISYS_BUFFER_LIST_FL_INCOMING, 0);
+	dev_dbg(NULL, "get buffer list failed, ret %d\n", ret);
 	return ret;
 }
 
@@ -563,26 +564,43 @@ static void buf_queue(struct vb2_buffer *vb)
 
 	mutex_unlock(&av->mutex);
 	mutex_lock(&av->isys->reset_mutex);
+	dev_dbg(&av->isys->adev->dev, "buffer: %s: wait for reset\n",
+		av->vdev.name
+		);
 	while (av->isys->in_reset) {
 		mutex_unlock(&av->isys->reset_mutex);
-		dev_dbg(&av->isys->adev->dev, "buffer: %s: wait for reset\n",
-			av->vdev.name
-		);
 		usleep_range(10000, 11000);
 		mutex_lock(&av->isys->reset_mutex);
 	}
+	av->isys->in_buf_queue++;
 	mutex_unlock(&av->isys->reset_mutex);
 	mutex_lock(&av->mutex);
 
 	/* ip may be cleared in ipu reset */
-	ip = to_ipu_isys_pipeline(media_entity_pipeline(&av->vdev.entity));
+	if (!mp || !ip || !pipe_av) {
+		dev_dbg(&av->isys->adev->dev, "buf_queue: %s: ip may be cleared in ipu reset, mp %x, ip %x, pipe_av %x\n",
+			av->vdev.name, mp, ip, pipe_av);
+	}
+	mp = media_entity_pipeline(&av->vdev.entity);
+	ip = to_ipu_isys_pipeline(mp);
 	pipe_av = container_of(ip, struct ipu_isys_video, ip);
-	if (ib->req)
+	dev_dbg(&av->isys->adev->dev, "buf_queue: %s: updated ip/mp/pipe_av\n", av->vdev.name);
+	if (ib->req) {
+		dev_warn(&av->isys->adev->dev,
+			"ip may be cleared in ipu reset, ignore incoming\n");
+		mutex_lock(&av->isys->reset_mutex);
+		av->isys->in_buf_queue--;
+		mutex_unlock(&av->isys->reset_mutex);
 		return;
+	}
 
-	if (!pipe_av || !mp || !vb->vb2_queue->start_streaming_called) {
-		dev_dbg(&av->isys->adev->dev,
-			"no pipe or streaming, adding to incoming\n");
+	if (!pipe_av || !mp ||
+	    !vb->vb2_queue->start_streaming_called) {
+		dev_warn(&av->isys->adev->dev,
+			 "buf_queue: %s, no pipe or streaming, adding to incoming\n", av->vdev.name);
+		mutex_lock(&av->isys->reset_mutex);
+		av->isys->in_buf_queue--;
+		mutex_unlock(&av->isys->reset_mutex);
 		return;
 	}
 
@@ -600,12 +618,14 @@ static void buf_queue(struct vb2_buffer *vb)
 	 * (above). Let's see whether all queues in the pipeline would
 	 * have a buffer.
 	 */
+	dev_dbg(&av->isys->adev->dev, "buf_queue: %s:buffer_list_get\n", av->vdev.name);
 	rval = buffer_list_get(ip, &bl);
 	if (rval < 0) {
+		dev_dbg(NULL, "buf_queue: %s:buffer_list_get return %d\n", av->vdev.name, rval);
 		if (rval == -EINVAL) {
+			WARN_ON(1);
 			dev_err(&av->isys->adev->dev,
 				"error: buffer list get failed\n");
-			WARN_ON(1);
 		} else {
 			dev_dbg(&av->isys->adev->dev,
 				"not enough buffers available rval: %d\n", rval);
@@ -613,12 +633,19 @@ static void buf_queue(struct vb2_buffer *vb)
 		goto out;
 	}
 
+	dev_dbg(&av->isys->adev->dev, "buf_queue: %s: ipu_get_fw_msg_buf\n", av->vdev.name);
 	msg = ipu_get_fw_msg_buf(ip);
 	if (!msg) {
 		rval = -ENOMEM;
 		goto out;
 	}
 	buf = to_frame_msg_buf(msg);
+	if (!buf) {
+		dev_warn(&av->isys->adev->dev,
+			"frame msg buffer is NULL !\n");
+		rval = -ENOMEM;
+		goto out;
+	}
 
 	ipu_isys_buffer_to_fw_frame_buff(buf, ip, &bl);
 
@@ -641,8 +668,10 @@ static void buf_queue(struct vb2_buffer *vb)
 	 * firmware since we could get a buffer event back before we
 	 * have queued them ourselves to the active queue.
 	 */
+	dev_dbg(&av->isys->adev->dev, "buf_queue: %s: ipu_get_fw_msg_buf\n", av->vdev.name);
 	ipu_isys_buffer_list_queue(&bl, IPU_ISYS_BUFFER_LIST_FL_ACTIVE, 0);
 
+	dev_dbg(&av->isys->adev->dev, "buf_queue: %s: ipu_fw_isys_complex_cmd\n", av->vdev.name);
 	rval = ipu_fw_isys_complex_cmd(pipe_av->isys,
 				       ip->stream_handle,
 				       buf, to_dma_addr(msg),
@@ -654,6 +683,10 @@ static void buf_queue(struct vb2_buffer *vb)
 out:
 	mutex_unlock(&pipe_av->mutex);
 	mutex_lock(&av->mutex);
+
+	mutex_lock(&av->isys->reset_mutex);
+	av->isys->in_buf_queue--;
+	mutex_unlock(&av->isys->reset_mutex);
 }
 
 int ipu_isys_link_fmt_validate(struct ipu_isys_queue *aq)
@@ -732,7 +765,7 @@ static void return_buffers(struct ipu_isys_queue *aq,
 
 		vb2_buffer_done(vb, state);
 
-		dev_dbg(&av->isys->adev->dev,
+		dev_warn(&av->isys->adev->dev,
 			"%s: stop_streaming incoming %u\n",
 			ipu_isys_queue_to_video(vb2_queue_to_ipu_isys_queue
 						(vb->vb2_queue))->vdev.name,
@@ -1004,6 +1037,7 @@ static int isys_fw_release(struct ipu_isys_video *av)
 		usleep_range(10000, 11000);
 		mutex_lock(&isys->reset_mutex);
 	}
+
 	mutex_unlock(&isys->reset_mutex);
 
 	mutex_lock(&isys->mutex);
@@ -1154,8 +1188,16 @@ static int ipu_isys_reset(struct ipu_isys_video *self_av,
 	isys->in_reset = true;
 
 	while (isys->in_stop_streaming) {
-		dev_dbg(&isys->adev->dev, "isys reset: %s: wait for stop\n",
-			self_av->vdev.name);
+		dev_warn(&isys->adev->dev, "%s:%d %s: wait for stop\n",
+			__func__, __LINE__, self_av->vdev.name);
+		mutex_unlock(&isys->reset_mutex);
+		usleep_range(10000, 11000);
+		mutex_lock(&isys->reset_mutex);
+	}
+
+	while (isys->in_buf_queue != 0) {
+		dev_warn(&isys->adev->dev, "%s:%d %s: wait for buf_queue\n",
+			__func__, __LINE__, self_av->vdev.name);
 		mutex_unlock(&isys->reset_mutex);
 		usleep_range(10000, 11000);
 		mutex_lock(&isys->reset_mutex);
@@ -1296,6 +1338,7 @@ static int ipu_isys_reset(struct ipu_isys_video *self_av,
 #endif
 
 end_of_reset:
+
 	mutex_lock(&isys->reset_mutex);
 	isys->in_reset = false;
 	mutex_unlock(&isys->reset_mutex);
@@ -1395,13 +1438,18 @@ static void stop_streaming(struct vb2_queue *q)
 	mutex_unlock(&av->isys->reset_mutex);
 
 	if (av->isys->reset_needed) {
-		if (!ip->nr_streaming && (!is_support_vc(source_pad, ip) || is_has_metadata(ip)))
+		if (!ip->nr_streaming && (!is_support_vc(source_pad, ip) || is_has_metadata(ip))) {
+			dev_warn(&av->isys->adev->dev, "reset_needed on %s taken\n", av->vdev.name);
+			flush_firmware_streamon_fail(ip);
 			ipu_isys_reset(av, ip);
-		else
 			av->isys->reset_needed = 0;
+		} else {
+			dev_warn(&av->isys->adev->dev, "reset_needed on %s ignored\n", av->vdev.name);
+			av->isys->reset_needed = 0;
+		}
 	}
 
-	dev_dbg(&av->isys->adev->dev, "stop: %s: exit\n",
+	dev_info(&av->isys->adev->dev, "stop: %s: exit\n",
 		av->vdev.name);
 	if (0 == ip->nr_streaming)
 		isys_fw_release(av);
@@ -1640,6 +1688,18 @@ void ipu_isys_queue_buf_ready(struct ipu_isys_pipeline *ip,
 		"WARNING: cannot find a matching video buffer!\n");
 
 	spin_unlock_irqrestore(&aq->lock, flags);
+}
+
+/*
+ * ipu_isys_queue_buf_flush() - Flush in cases where requests may
+ * have been queued to firmware and the *firmware streamon fails for a
+ * reason or another.
+ */
+void
+ipu_isys_queue_buf_flush(struct ipu_isys_pipeline *ip)
+{
+  if (ip)
+    flush_firmware_streamon_fail(ip);
 }
 
 void

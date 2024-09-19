@@ -2764,15 +2764,21 @@ out_stream_close:
 
 	tout = wait_for_completion_timeout(&ip->stream_close_completion,
 					   IPU_LIB_CALL_TIMEOUT_JIFFIES);
-	if (!tout)
+	if (!tout) {
+	        ipu_isys_queue_buf_flush(ip);
 		dev_err(dev, "stream close time out for entity %s\n",
 			av->vdev.entity.name);
-	else if (ip->error)
+		rval = -ETIMEDOUT;
+	} else if (ip->error) {
+	        ipu_isys_queue_buf_flush(ip);
 		dev_err(dev, "stream close failed for entity %s with error %d\n",
 			av->vdev.entity.name, ip->error);
-	else
+		rval = -EIO;
+	} else {
 		dev_dbg(dev, "close stream: complete for entity %s\n",
 			av->vdev.entity.name);
+		rval = 0;
+	}
 
 out_put_stream_opened:
 	put_stream_opened(av);
@@ -2804,10 +2810,12 @@ int stop_streaming_firmware(struct ipu_isys_video *av)
 	tout = wait_for_completion_timeout(&ip->stream_stop_completion,
 					   IPU_LIB_CALL_TIMEOUT_JIFFIES_RESET);
 	if (!tout) {
+	        ipu_isys_queue_buf_flush(ip);
 		dev_err(dev, "stream stop time out for entity %s\n",
 			av->vdev.entity.name);
 		rval = -ETIMEDOUT;
 	} else if (ip->error) {
+	        ipu_isys_queue_buf_flush(ip);
 		dev_err(dev, "stream stop failed for entity %s with error %d\n",
 			av->vdev.entity.name, ip->error);
 		rval = -EIO;
