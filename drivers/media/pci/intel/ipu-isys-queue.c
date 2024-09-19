@@ -1258,6 +1258,7 @@ static int ipu_isys_reset(struct ipu_isys_video *self_av,
 	if (rval < 0)
 		dev_err(&isys->adev->dev, "ipu fw isys init failed\n");
 
+#ifndef CONFIG_VIDEO_INTEL_IPU6
 	dev_dbg(&isys->adev->dev, "restart streams\n");
 
 	av = &isys->csi2->av;
@@ -1289,6 +1290,10 @@ static int ipu_isys_reset(struct ipu_isys_video *self_av,
 		mutex_unlock(&av->mutex);
 		}
 	}
+#else
+	if (av->reset)
+		av->reset = false;
+#endif
 
 end_of_reset:
 	mutex_lock(&isys->reset_mutex);
