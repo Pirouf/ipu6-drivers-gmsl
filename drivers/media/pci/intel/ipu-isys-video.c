@@ -532,8 +532,8 @@ static int video_release(struct file *file)
 	struct ipu_isys_video *av = video_drvdata(file);
 	int ret = 0;
 
-	dev_dbg(&av->isys->adev->dev, "release: %s: enter\n",
-		av->vdev.name);
+	//dev_dbg(&av->isys->adev->dev, "release: %s: enter\n",
+	//	av->vdev.name);
 	vb2_fop_release(file);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
@@ -543,8 +543,8 @@ static int video_release(struct file *file)
 #else
 	v4l2_pipeline_pm_put(&av->vdev.entity);
 #endif
-	dev_dbg(&av->isys->adev->dev, "release: %s: exit\n",
-		av->vdev.name);
+	//dev_dbg(&av->isys->adev->dev, "release: %s: exit\n",
+	//	av->vdev.name);
 	return ret;
 }
 
@@ -622,9 +622,13 @@ int ipu_isys_get_parm_subdev(struct ipu_isys_video *av,
 	struct v4l2_subdev_frame_interval *fi =
 		(struct v4l2_subdev_frame_interval *)data;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
-	struct media_pad *pad = other_pad(&av->vdev.entity.pads[0]);
-	ret = v4l2_subdev_call_state_active(sd, pad,
-					    get_frame_interval, fi);
+	struct v4l2_subdev_state *state = v4l2_subdev_get_unlocked_active_state(sd);
+	/* v4l2_subdev_call doesn't call, access directly
+	   ret = v4l2_subdev_call_state_active(sd, pad,
+                                            get_frame_interval, fi);
+	*/
+	if (sd && sd->ops && sd->ops->pad && sd->ops->pad->get_frame_interval)
+               ret = sd->ops->pad->get_frame_interval(sd, state, fi);
 #else
 	/* v4l2_subdev_call doesn't call, access directly
 	ret = v4l2_subdev_call(sd, video, s_frame_interval, fi);
@@ -643,9 +647,13 @@ int ipu_isys_set_parm_subdev(struct ipu_isys_video *av,
 	struct v4l2_subdev_frame_interval *fi =
 		(struct v4l2_subdev_frame_interval *)data;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
-	struct media_pad *pad = other_pad(&av->vdev.entity.pads[0]);
-	ret = v4l2_subdev_call_state_active(sd, pad,
-					    set_frame_interval, fi);
+	struct v4l2_subdev_state *state = v4l2_subdev_get_unlocked_active_state(sd);
+	/* v4l2_subdev_call doesn't call, access directly
+	   ret = v4l2_subdev_call_state_active(sd, pad,
+                                            get_frame_interval, fi);
+	*/
+	if (sd && sd->ops && sd->ops->pad && sd->ops->pad->set_frame_interval)
+               ret = sd->ops->pad->set_frame_interval(sd, state, fi);
 #else
 	/* v4l2_subdev_call doesn't call, access directly */
 	// ret = v4l2_subdev_call(sd, video, s_frame_interval, fi);
