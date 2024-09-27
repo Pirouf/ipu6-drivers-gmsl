@@ -333,12 +333,14 @@ int ipu_acpi_get_dep_data(struct device *dev,
 		return 0;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(6, 7, 0)
 	status = acpi_evaluate_reference(dev_handle, "_DEP", NULL,
 					 &dep_devices);
 
 	if (ACPI_FAILURE(status)) {
 #else
+	  pr_info("IPU6 ACPI: evaluate Dependent platform device %s\n",
+		  dev_name(dev));
 	if (!acpi_evaluate_reference(dev_handle, "_DEP", NULL, &dep_devices)) {
 #endif
 		pr_err("IPU6 ACPI: %s failed to evaluate _DEP", dev_name(dev));
