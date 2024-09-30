@@ -83,7 +83,7 @@ const struct ipu_isys_pixelformat ipu_isys_pfmts_be_soc[] = {
 	 IPU_FW_ISYS_FRAME_FORMAT_RAW8},
 	{V4L2_PIX_FMT_GREY, 8, 8, 0, MEDIA_BUS_FMT_Y8_1X8,
 	 IPU_FW_ISYS_FRAME_FORMAT_RAW8},
-#ifdef V4L2_PIX_FMT_Y210
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
 	{V4L2_PIX_FMT_Y210, 20, 20, 0, MEDIA_BUS_FMT_YUYV10_1X20,
 	 IPU_FW_ISYS_FRAME_FORMAT_YUYV},
 #endif
@@ -100,7 +100,7 @@ const struct ipu_isys_pixelformat ipu_isys_pfmts_be_soc[] = {
 const struct ipu_isys_pixelformat ipu_isys_pfmts_packed[] = {
 	{V4L2_PIX_FMT_Y10, 10, 10, 0, MEDIA_BUS_FMT_Y10_1X10,
 	 IPU_FW_ISYS_FRAME_FORMAT_RAW10},
-#ifdef V4L2_PIX_FMT_Y210
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
 	{V4L2_PIX_FMT_Y210, 20, 20, 0, MEDIA_BUS_FMT_YUYV10_1X20,
 	 IPU_FW_ISYS_FRAME_FORMAT_YUYV},
 #endif
