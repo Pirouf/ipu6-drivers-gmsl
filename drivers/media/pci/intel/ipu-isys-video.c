@@ -419,29 +419,16 @@ static int media_pipeline_enumerate_by_vc_cb(
 		/*
 		 * If entity's pipe is not null and it is video device, it has
 		 * be enabled.
-		 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 		if (entity->pipe && is_media_entity_v4l2_video_device(entity))
 			continue;
-
-		/*
-		 * If it is video device and its vc id is not equal to curren
-		 * video device's vc id, it should continue.
 		 */
-		if (is_vc && is_media_entity_v4l2_video_device(entity)) {
-#else
 		/*
-		if (entity->pads[0].pipe &&
-		    is_media_entity_v4l2_video_device(entity))
-			continue;
-
 		 * If it is video device and its vc id is not equal to curren
 		 * video device's vc id, it should continue.
 		 */
 		if (is_vc) {
-#endif
 
-		dev_dbg(dev,
+		  dev_dbg(dev,
 			"%s():%d walk entity name: %s, type:%x, func:%x\n",
 			__func__, __LINE__,
 			entity->name,
@@ -451,6 +438,7 @@ static int media_pipeline_enumerate_by_vc_cb(
 		  sd = (entity->obj_type == MEDIA_ENTITY_TYPE_V4L2_SUBDEV && \
 			entity->function == MEDIA_ENT_F_CAM_SENSOR)	\
 		    ? media_entity_to_v4l2_subdev(entity) : NULL;
+
 		  if (!sd)
 		    continue;
 		  if (!sd->ctrl_handler)
