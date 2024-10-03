@@ -764,8 +764,13 @@ static int ipu_isys_enum_framesizes(struct file *file, void *fh,
 				ipu_isys_enum_framesizes_subdev, &fse);
 	}
 	else
+	{
+		/* v4l2_subdev_call doesn't call, access directly
 		ret = v4l2_subdev_call(sd, pad, enum_frame_size, NULL, &fse);
-
+		*/
+		if (sd && sd->ops && sd->ops->pad && sd->ops->pad->enum_frame_size)
+			ret = sd->ops->pad->enum_frame_size(sd, NULL, &fse);
+	}
 	if (!ret && fse.max_width > 0 && fse.max_height > 0)
 	{
 		sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
@@ -836,8 +841,13 @@ static int ipu_isys_enum_frameintervals(struct file *file, void *fh,
 				ipu_isys_enum_frameintervals_subdev, &fie);
 	}
 	else
-		ret = v4l2_subdev_call(sd, pad, enum_frame_interval, NULL, &fie);
-
+	{
+		/* v4l2_subdev_call doesn't call, access directly
+		   ret = v4l2_subdev_call(sd, pad, enum_frame_interval, NULL, &fie);
+		*/
+		if (sd && sd->ops && sd->ops->pad && sd->ops->pad->enum_frame_interval)
+			ret = sd->ops->pad->enum_frame_interval(sd, NULL, &fie);
+	}
 	if (!ret && fie.interval.numerator > 0 && fie.interval.denominator > 0)
 	{
 		intervals->type = V4L2_FRMIVAL_TYPE_DISCRETE;
@@ -1145,7 +1155,11 @@ int ipu_isys_set_fmt_subdev(struct ipu_isys_video *av,
 	int ret = 0;
 	struct v4l2_subdev_format *fmt =
 		(struct v4l2_subdev_format *)data;
-	ret = v4l2_subdev_call(sd, pad, set_fmt, NULL, fmt);
+	/* v4l2_subdev_call doesn't call, access directly
+	   ret = v4l2_subdev_call(sd, pad, set_fmt, NULL, fmt);
+	*/
+	if (sd && sd->ops && sd->ops->pad && sd->ops->pad->set_fmt)
+	  ret = sd->ops->pad->set_fmt(sd, NULL, fmt);
 
 	return ret;
 }
@@ -1377,6 +1391,7 @@ static int link_validate(struct media_link *link)
 	struct media_pad *source_pad = media_pad_remote_pad_first(&av->pad);
 #endif
 	struct v4l2_subdev_format fmt = { 0 };
+	int rval = 0;
 	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 
 	if (!link->source->entity)
@@ -1412,9 +1427,13 @@ static int link_validate(struct media_link *link)
 	fmt.format.quantization = av->mpix.quantization;
 	fmt.format.xfer_func = av->mpix.xfer_func;
 	fmt.pad = source_pad->index;
-	v4l2_subdev_call(sd, pad, set_fmt, NULL, &fmt);
+	/* v4l2_subdev_call doesn't call, access directly
+	   v4l2_subdev_call(sd, pad, set_fmt, NULL, &fmt);
+	*/
+	if (sd && sd->ops && sd->ops->pad && sd->ops->pad->set_fmt)
+	  rval = sd->ops->pad->set_fmt(sd, NULL, &fmt);
 
-	return 0;
+	return rval;
 }
 
 static void get_stream_opened(struct ipu_isys_video *av)
@@ -1477,6 +1496,7 @@ static int get_external_facing_format(struct ipu_isys_pipeline *ip,
 	struct ipu_isys_video *av = container_of(ip, struct ipu_isys_video, ip);
 	struct v4l2_subdev *sd;
 	struct media_pad *external_facing;
+	int rval = 0;
 
 	if (!ip->external->entity) {
 		WARN_ON(1);
@@ -1504,7 +1524,12 @@ static int get_external_facing_format(struct ipu_isys_pipeline *ip,
 	format->pad = 0;
 	sd = media_entity_to_v4l2_subdev(external_facing->entity);
 
-	return v4l2_subdev_call(sd, pad, get_fmt, NULL, format);
+	/* v4l2_subdev_call doesn't call, access directly
+	   return v4l2_subdev_call(sd, pad, get_fmt, NULL, format);
+	*/
+	if (sd && sd->ops && sd->ops->pad && sd->ops->pad->get_fmt)
+	  rval = sd->ops->pad->get_fmt(sd, NULL, format);
+	return rval;
 }
 
 static void short_packet_queue_destroy(struct ipu_isys_pipeline *ip)
@@ -2580,13 +2605,16 @@ int start_stream_firmware(struct ipu_isys_video *av,
 			sel_fmt.pad = source_pad->index;
 	}
 	crop = &stream_cfg->crop;
+	/* v4l2_subdev_call doesn't call, access directly
 	if (be_sd &&
 	    !v4l2_subdev_call(be_sd, pad, get_selection, NULL, &sel_fmt)) {
+	*/
+	if (be_sd && be_sd->ops && be_sd->ops->pad && be_sd->ops->pad->get_selection &&
+	    !be_sd->ops->pad->get_selection(be_sd, NULL, &sel_fmt)) {
 		crop->left_offset = sel_fmt.r.left;
 		crop->top_offset = sel_fmt.r.top;
 		crop->right_offset = sel_fmt.r.left + sel_fmt.r.width;
 		crop->bottom_offset = sel_fmt.r.top + sel_fmt.r.height;
-
 	} else {
 		crop->right_offset = source_fmt.format.width;
 		crop->bottom_offset = source_fmt.format.height;
@@ -3093,13 +3121,21 @@ int ipu_isys_video_set_streaming(struct ipu_isys_video *av,
 					 &cs);
 #endif
 		} else {
-			rval = v4l2_subdev_call(esd, video, s_stream, state);
+			/* v4l2_subdev_call doesn't call, access directly
+			   rval = v4l2_subdev_call(esd, video, s_stream, state);
+			*/
+			if (esd && esd->ops && esd->ops->video && esd->ops->video->s_stream)
+				rval = esd->ops->video->s_stream(esd, state);
 		}
 		if (rval)
 			goto out_media_entity_graph_init;
 		if (av->enum_link_state == IPU_ISYS_LINK_STATE_DONE || \
 			av->enum_link_state == IPU_ISYS_LINK_STATE_MD)
-			rval = v4l2_subdev_call(esd, video, s_stream, state);
+			/* v4l2_subdev_call doesn't call, access directly
+			   rval = v4l2_subdev_call(esd, video, s_stream, state);
+			*/
+			if (esd && esd->ops && esd->ops->video && esd->ops->video->s_stream)
+				rval = esd->ops->video->s_stream(esd, state);
 	}
 
 	mutex_lock(&mdev->graph_mutex);
@@ -3128,9 +3164,14 @@ int ipu_isys_video_set_streaming(struct ipu_isys_video *av,
 		    ip->external->entity == entity)
 			continue;
 
-		dev_dbg(dev, "s_stream %s entity %s\n", state ? "on" : "off",
-			entity->name);
+		dev_dbg(dev, "s_stream %s entity %s subdev %s\n", state ? "on" : "off",
+			entity->name,
+			sd->name);
+		/* v4l2_subdev_call doesn't call, access directly
 		rval = v4l2_subdev_call(sd, video, s_stream, state);
+		*/
+		if (sd && sd->ops && sd->ops->video && sd->ops->video->s_stream)
+			rval = sd->ops->video->s_stream(sd, state);
 		if (!state)
 			continue;
 		if (rval && rval != -ENOIOCTLCMD) {
@@ -3168,13 +3209,21 @@ int ipu_isys_video_set_streaming(struct ipu_isys_video *av,
 						&cs);
 #endif
 		} else {
-			rval = v4l2_subdev_call(esd, video, s_stream, state);
+			/* v4l2_subdev_call doesn't call, access directly
+			   rval = v4l2_subdev_call(esd, video, s_stream, state);
+			*/
+			if (esd && esd->ops && esd->ops->video && esd->ops->video->s_stream)
+				rval = esd->ops->video->s_stream(esd, state);
 		}
 		if (rval)
 			goto out_media_entity_stop_streaming_firmware;
 		if (av->enum_link_state == IPU_ISYS_LINK_STATE_DONE || \
 			av->enum_link_state == IPU_ISYS_LINK_STATE_MD) {
-			rval = v4l2_subdev_call(esd, video, s_stream, state);
+			/* v4l2_subdev_call doesn't call, access directly
+			   rval = v4l2_subdev_call(esd, video, s_stream, state);
+			*/
+			if (esd && esd->ops && esd->ops->video && esd->ops->video->s_stream)
+				rval = esd->ops->video->s_stream(esd, state);
 			if (rval)
 				goto out_media_entity_stop_streaming_firmware;
 		}
@@ -3215,7 +3264,11 @@ out_media_entity_stop_streaming:
 		if (!media_entity_enum_test(&entities, entity2))
 			continue;
 
-		v4l2_subdev_call(sd, video, s_stream, 0);
+		/* v4l2_subdev_call doesn't call, access directly
+		rval = v4l2_subdev_call(sd, video, s_stream, 0);
+		*/
+		if (sd && sd->ops && sd->ops->video && sd->ops->video->s_stream)
+			rval = sd->ops->video->s_stream(sd, 0);
 	}
 
 	mutex_unlock(&mdev->graph_mutex);
