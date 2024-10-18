@@ -1141,7 +1141,7 @@ ipu_isys_video_try_fmt_vid_mplane(struct ipu_isys_video *av,
 	if (mpix->field == V4L2_FIELD_ANY)
 		mpix->field = V4L2_FIELD_NONE;
 	/* Use defaults */
-	mpix->colorspace = V4L2_COLORSPACE_RAW;
+	//mpix->colorspace = V4L2_COLORSPACE_RAW;
 	mpix->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
 	mpix->quantization = V4L2_QUANTIZATION_DEFAULT;
 	mpix->xfer_func = V4L2_XFER_FUNC_DEFAULT;
