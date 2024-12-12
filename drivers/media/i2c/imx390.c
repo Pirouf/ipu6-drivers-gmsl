@@ -19,6 +19,17 @@
 #include <media/v4l2-fwnode.h>
 #include <media/i2c/imx390.h>
 
+#define IMX390_LINK_FREQ_1250MHZ		1250000000ULL
+#define IMX390_LINK_FREQ_1125MHZ		1125000000ULL
+#define IMX390_LINK_FREQ_1000MHZ		1000000000ULL
+#define IMX390_LINK_FREQ_900MHZ		900000000ULL
+#define IMX390_LINK_FREQ_840MHZ		840000000ULL
+#define IMX390_LINK_FREQ_750MHZ		750000000ULL
+#define IMX390_LINK_FREQ_720MHZ		720000000ULL
+#define IMX390_LINK_FREQ_600MHZ		600000000ULL
+#define IMX390_LINK_FREQ_576MHZ		576000000ULL
+#define IMX390_LINK_FREQ_480MHZ		480000000ULL
+#define IMX390_LINK_FREQ_450MHZ		450000000ULL
 #define IMX390_LINK_FREQ_360MHZ		360000000ULL
 #define IMX390_LINK_FREQ_300MHZ		300000000ULL
 #define IMX390_LINK_FREQ_288MHZ		288000000ULL
@@ -1026,6 +1037,17 @@ static const struct imx390_reg_list lsc_vendor_def_list = {
 };
 
 static const s64 link_freq_menu_items[] = {
+	IMX390_LINK_FREQ_1250MHZ,
+	IMX390_LINK_FREQ_1125MHZ,
+	IMX390_LINK_FREQ_1000MHZ,
+	IMX390_LINK_FREQ_900MHZ,
+	IMX390_LINK_FREQ_840MHZ,
+	IMX390_LINK_FREQ_750MHZ,
+	IMX390_LINK_FREQ_720MHZ,
+	IMX390_LINK_FREQ_600MHZ,
+	IMX390_LINK_FREQ_576MHZ,
+	IMX390_LINK_FREQ_480MHZ,
+	IMX390_LINK_FREQ_450MHZ,
 	IMX390_LINK_FREQ_360MHZ,
 	IMX390_LINK_FREQ_300MHZ,
 	IMX390_LINK_FREQ_288MHZ,
@@ -1404,6 +1426,27 @@ static int imx390_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_TEST_PATTERN:
 		ret = imx390_set_lsc_pattern(imx390, ctrl->val);
 		break;
+#ifdef CONFIG_VIDEO_INTEL_IPU6
+	case V4L2_CID_LINK_FREQ:
+		if (ctrl->p_new.p_u8)
+		{
+		  /* ARL/MTL and RPL/ADL IPU6 CSI-PHYs do NOT share
+		   *  the same link_freq.
+		   * V4L2_CID_LINK_FREQ must be R/W to set platform specific link_freq PHY set-point
+		   * via systemd-udevd rules.
+		   */
+		  if (*ctrl->p_new.p_u8 <= (ARRAY_SIZE(link_freq_menu_items) - 1)) {
+			struct v4l2_ctrl *link_freq = imx390->link_freq;
+			dev_info(&client->dev,
+				"user-modified %s index val=%d to user-val=%d",
+				 ctrl->name,
+				 (unsigned int) link_freq->val,
+				 (unsigned int) *ctrl->p_new.p_u8);
+			link_freq->val = (s32) *ctrl->p_new.p_u8;
+		  }
+		}
+		break;
+#endif
 	default:
 		ret = -EINVAL;
 		break;
@@ -1434,9 +1477,16 @@ static int imx390_init_controls(struct imx390 *imx390)
 	imx390->link_freq = v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx390_ctrl_ops,
 					   V4L2_CID_LINK_FREQ,
 					   ARRAY_SIZE(link_freq_menu_items) - 1,
-					   0, link_freq_menu_items);
+					   11, link_freq_menu_items); // default IMX390_LINK_FREQ_360MHZ
+#ifndef CONFIG_VIDEO_INTEL_IPU6
+	/* ARL/MTL and RPL/ADL/TGL IPU6 CSI2-PHY do NOT share
+	 *  the same default link_freq.
+	 * V4L2_CID_LINK_FREQ must be R/W to set platform specific link_freq PHY set-point
+	 * via systemd-udevd rules.
+	*/
 	if (imx390->link_freq)
 		imx390->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+#endif
 
 	imx390->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx390_ctrl_ops,
 			  V4L2_CID_VBLANK,
@@ -1757,7 +1807,9 @@ static int imx390_set_format(struct v4l2_subdev *sd,
 #endif
 	} else {
 		imx390->cur_mode = mode;
+#ifndef CONFIG_VIDEO_INTEL_IPU6
 		__v4l2_ctrl_s_ctrl(imx390->link_freq, mode->link_freq_index);
+#endif
 		__v4l2_ctrl_modify_range(imx390->pixel_rate,
 					get_pixel_rate(imx390),
 					get_pixel_rate(imx390),
