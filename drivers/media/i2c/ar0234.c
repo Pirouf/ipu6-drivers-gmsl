@@ -23,6 +23,17 @@
 #define AR0234_REG_VALUE_08BIT		1
 #define AR0234_REG_VALUE_16BIT		2
 
+#define AR0234_LINK_FREQ_1250MHZ	1250000000ULL
+#define AR0234_LINK_FREQ_1125MHZ	1125000000ULL
+#define AR0234_LINK_FREQ_1000MHZ	1000000000ULL
+#define AR0234_LINK_FREQ_900MHZ		900000000ULL
+#define AR0234_LINK_FREQ_840MHZ		840000000ULL
+#define AR0234_LINK_FREQ_750MHZ		750000000ULL
+#define AR0234_LINK_FREQ_720MHZ		720000000ULL
+#define AR0234_LINK_FREQ_600MHZ		600000000ULL
+#define AR0234_LINK_FREQ_576MHZ		576000000ULL
+#define AR0234_LINK_FREQ_480MHZ		480000000ULL
+#define AR0234_LINK_FREQ_450MHZ		450000000ULL
 #define AR0234_LINK_FREQ_360MHZ		360000000ULL
 #define AR0234_LINK_FREQ_300MHZ		300000000ULL
 #define AR0234_LINK_FREQ_288MHZ		288000000ULL
@@ -1234,6 +1245,17 @@ static const struct ar0234_reg mode_1920x1200_10bit_2lane[] = {
 };
 
 static const s64 link_freq_menu_items[] = {
+	AR0234_LINK_FREQ_1250MHZ,
+	AR0234_LINK_FREQ_1125MHZ,
+	AR0234_LINK_FREQ_1000MHZ,
+	AR0234_LINK_FREQ_900MHZ,
+	AR0234_LINK_FREQ_840MHZ,
+	AR0234_LINK_FREQ_750MHZ,
+	AR0234_LINK_FREQ_720MHZ,
+	AR0234_LINK_FREQ_600MHZ,
+	AR0234_LINK_FREQ_576MHZ,
+	AR0234_LINK_FREQ_480MHZ,
+	AR0234_LINK_FREQ_450MHZ,
 	AR0234_LINK_FREQ_360MHZ,
 	AR0234_LINK_FREQ_300MHZ,
 	AR0234_LINK_FREQ_288MHZ,
@@ -1612,6 +1634,27 @@ static int ar0234_set_ctrl(struct v4l2_ctrl *ctrl)
 				val);
 		dev_info(&client->dev, "set hflip %d\n", ctrl->val);
 		break;
+#ifdef CONFIG_VIDEO_INTEL_IPU6
+	case V4L2_CID_LINK_FREQ:
+		if (ctrl->p_new.p_u8)
+		{
+		  /* ARL/MTL and RPL/ADL IPU6 CSI-PHYs do NOT share
+		   *  the same link_freq.
+		   * V4L2_CID_LINK_FREQ must be R/W to set platform specific link_freq PHY set-point
+		   * via systemd-udevd rules.
+		   */
+		  if (*ctrl->p_new.p_u8 <= (ARRAY_SIZE(link_freq_menu_items) - 1)) {
+			struct v4l2_ctrl *link_freq = ar0234->link_freq;
+			dev_info(&client->dev,
+				"user-modified %s index val=%d to user-val=%d",
+				 ctrl->name,
+				 (unsigned int) link_freq->val,
+				 (unsigned int) *ctrl->p_new.p_u8);
+			link_freq->val = (s32) *ctrl->p_new.p_u8;
+		  }
+		}
+		break;
+#endif
 	default:
 		ret = -EINVAL;
 		break;
@@ -1715,9 +1758,16 @@ static int ar0234_init_controls(struct ar0234 *ar0234)
 	ar0234->link_freq = v4l2_ctrl_new_int_menu(ctrl_hdlr, &ar0234_ctrl_ops,
 					   V4L2_CID_LINK_FREQ,
 					   ARRAY_SIZE(link_freq_menu_items) - 1,
-					   0, link_freq_menu_items);
+					   11, link_freq_menu_items);     // default AR0234_LINK_FREQ_360MHZ
+#ifndef CONFIG_VIDEO_INTEL_IPU6
+	/* ARL/MTL and RPL/ADL/TGL IPU6 CSI2-PHY do NOT share
+	 *  the same default link_freq.
+	 * V4L2_CID_LINK_FREQ must be R/W to set platform specific link_freq PHY set-point
+	 * via systemd-udevd rules.
+	*/
 	if (ar0234->link_freq)
 		ar0234->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+#endif
 
 	ar0234->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &ar0234_ctrl_ops,
 			  V4L2_CID_VBLANK,
@@ -1982,7 +2032,9 @@ static int ar0234_set_format(struct v4l2_subdev *sd,
 #endif
 	} else {
 		ar0234->cur_mode = mode;
+#ifndef CONFIG_VIDEO_INTEL_IPU6
 		__v4l2_ctrl_s_ctrl(ar0234->link_freq, mode->link_freq_index);
+#endif
 		__v4l2_ctrl_modify_range(ar0234->pixel_rate,
 					get_pixel_rate(ar0234),
 					get_pixel_rate(ar0234),
