@@ -478,9 +478,17 @@ static int lt6911uxe_g_input_status(struct v4l2_subdev *sd, u32 *status)
 }
 
 static int __maybe_unused lt6911uxe_s_dv_timings(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+		unsigned int pad,
+#endif
 		struct v4l2_dv_timings *timings)
 {
 	struct lt6911uxe_state *lt6911uxe = to_state(sd);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+	if (pad != 0)
+		return -EINVAL;
+#endif
 
 	if (!v4l2_valid_dv_timings(timings, lt6911uxe_g_timings_cap(lt6911uxe),
 				   NULL, NULL)) {
@@ -496,9 +504,17 @@ static int __maybe_unused lt6911uxe_s_dv_timings(struct v4l2_subdev *sd,
 }
 
 static int lt6911uxe_g_dv_timings(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+		unsigned int pad,
+#endif
 		struct v4l2_dv_timings *timings)
 {
 	struct lt6911uxe_state *lt6911uxe = to_state(sd);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+	if (pad != 0)
+		return -EINVAL;
+#endif
 
 	v4l2_dbg(3, debug, sd, "%s():\n", __func__);
 	*timings = lt6911uxe->timings;
@@ -506,9 +522,17 @@ static int lt6911uxe_g_dv_timings(struct v4l2_subdev *sd,
 }
 
 static int __maybe_unused lt6911uxe_query_dv_timings(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+		unsigned int pad,
+#endif
 		struct v4l2_dv_timings *timings)
 {
 	struct lt6911uxe_state *lt6911uxe = to_state(sd);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+	if (pad != 0)
+		return -EINVAL;
+#endif
 
 	v4l2_dbg(3, debug, sd, "%s():\n", __func__);
 	if (false == lt6911uxe->streaming) {
@@ -1145,9 +1169,11 @@ static const struct v4l2_subdev_video_ops lt6911uxe_video_ops = {
 	.g_frame_interval = lt6911uxe_g_frame_interval,
 #endif
 	.g_input_status	= lt6911uxe_g_input_status,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 //	.s_dv_timings	= lt6911uxe_s_dv_timings,
 	.g_dv_timings	= lt6911uxe_g_dv_timings,
 //	.query_dv_timings	= lt6911uxe_query_dv_timings,
+#endif
 	.s_stream	= lt6911uxe_set_stream,
 };
 
@@ -1159,6 +1185,11 @@ static const struct v4l2_subdev_pad_ops lt6911uxe_pad_ops = {
 	.enum_frame_interval = lt6911uxe_enum_frame_interval,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
 	.get_frame_interval = lt6911uxe_g_frame_interval,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+//	.s_dv_timings	= lt6911uxe_s_dv_timings,
+	.g_dv_timings	= lt6911uxe_g_dv_timings,
+//	.query_dv_timings	= lt6911uxe_query_dv_timings,
 #endif
 };
 
