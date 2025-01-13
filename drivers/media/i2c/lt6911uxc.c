@@ -462,9 +462,17 @@ static int lt6911uxc_g_input_status(struct v4l2_subdev *sd, u32 *status)
 }
 
 static int __maybe_unused lt6911uxc_s_dv_timings(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+		unsigned int pad,
+#endif
 		struct v4l2_dv_timings *timings)
 {
 	struct lt6911uxc_state *lt6911uxc = to_state(sd);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+	if (pad != 0)
+		return -EINVAL;
+#endif
 
 	v4l2_dbg(3, debug, sd, "%s():\n", __func__);
 
@@ -482,9 +490,17 @@ static int __maybe_unused lt6911uxc_s_dv_timings(struct v4l2_subdev *sd,
 }
 
 static int lt6911uxc_g_dv_timings(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+		unsigned int pad,
+#endif
 		struct v4l2_dv_timings *timings)
 {
 	struct lt6911uxc_state *lt6911uxc = to_state(sd);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+	if (pad != 0)
+		return -EINVAL;
+#endif
 
 	v4l2_dbg(3, debug, sd, "%s():\n", __func__);
 
@@ -493,9 +509,17 @@ static int lt6911uxc_g_dv_timings(struct v4l2_subdev *sd,
 }
 
 static int __maybe_unused lt6911uxc_query_dv_timings(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+		unsigned int pad,
+#endif
 		struct v4l2_dv_timings *timings)
 {
 	struct lt6911uxc_state *lt6911uxc = to_state(sd);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+	if (pad != 0)
+		return -EINVAL;
+#endif
 
 	v4l2_dbg(3, debug, sd, "%s():\n", __func__);
 
@@ -1132,9 +1156,11 @@ static const struct v4l2_subdev_video_ops lt6911uxc_video_ops = {
 	.g_frame_interval = lt6911uxc_g_frame_interval,
 #endif
 	.g_input_status	= lt6911uxc_g_input_status,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 //	.s_dv_timings	= lt6911uxc_s_dv_timings,
 	.g_dv_timings	= lt6911uxc_g_dv_timings,
 //	.query_dv_timings	= lt6911uxc_query_dv_timings,
+#endif
 	.s_stream	= lt6911uxc_set_stream,
 };
 
@@ -1146,6 +1172,11 @@ static const struct v4l2_subdev_pad_ops lt6911uxc_pad_ops = {
 	.enum_frame_interval = lt6911uxc_enum_frame_interval,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
 	.get_frame_interval = lt6911uxc_g_frame_interval,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+//	.s_dv_timings	= lt6911uxc_s_dv_timings,
+	.g_dv_timings	= lt6911uxc_g_dv_timings,
+//	.query_dv_timings	= lt6911uxc_query_dv_timings,
 #endif
 };
 
