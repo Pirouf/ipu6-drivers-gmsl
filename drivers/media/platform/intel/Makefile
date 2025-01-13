@@ -11,6 +11,8 @@ ccflags-y += -I$(srcpath)/$(src)/../../pci/intel/
 obj-$(CONFIG_INTEL_IPU6_ACPI)         += ipu6-acpi.o \
 					ipu6-acpi-pdata.o \
 					ipu6-acpi-common.o
+
+ccflags-y += -DCONFIG_BACKWARD_INTEL_ISYS
 CFLAGS_ipu6-acpi-pdata.o += -DDEBUG
 CFLAGS_ipu6-acpi-common.o += -DDEBUG
 CFLAGS_ipu6-acpi.o += -DDEBUG

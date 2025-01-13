@@ -13,8 +13,10 @@
  *
  */
 #include <linux/version.h>
+#ifndef CONFIG_BACKWARD_INTEL_ISYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 #include "ipu6-isys.h"
+#endif
 #endif
 #include <media/ipu-acpi.h>
 #include <media/ipu-acpi-pdata.h>
@@ -555,7 +557,7 @@ static int set_csi2(struct ipu_isys_subdev_info **sensor_sd,
 		unsigned int lanes,
 		unsigned int port)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) ||  defined(CONFIG_BACKWARD_INTEL_ISYS)
 	struct ipu_isys_csi2_config *csi2_config;
 #else
 	struct ipu6_isys_csi2_config *csi2_config;

@@ -14,8 +14,10 @@
  */
 #include <linux/platform_device.h>
 #include <linux/version.h>
+#ifndef CONFIG_BACKWARD_INTEL_ISYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 #include "ipu6-isys.h"
+#endif
 #endif
 #include <media/ipu-acpi-pdata.h>
 #include <media/ipu-acpi.h>

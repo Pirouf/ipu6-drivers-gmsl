@@ -7,6 +7,10 @@
 #include <linux/iova.h>
 #include <linux/module.h>
 #include <linux/sizes.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+#include <linux/vmalloc.h>
+#endif
 
 #include "ipu.h"
 #include "ipu-platform.h"

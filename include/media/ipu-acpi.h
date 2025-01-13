@@ -17,7 +17,7 @@
 #define MEDIA_INTEL_IPU_ACPI_H
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_ISYS)
 #include <media/ipu-isys.h>
 #include "ipu-isys.h"
 #endif
@@ -148,7 +148,7 @@ int ipu_get_acpi_devices(void *driver_data,
 				struct ipu_isys_subdev_pdata **built_in_pdata,
 				int (*fn)
 				(struct device *, void *,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_ISYS)
 				 struct ipu_isys_csi2_config *csi2,
 #else
 				 struct ipu6_isys_csi2_config *csi2,
@@ -174,7 +174,7 @@ struct intel_ipu6_regulator {
 
 struct ipu_i2c_helper {
 	int (*fn)(struct device *dev, void *priv,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_ISYS)
 		struct ipu_isys_csi2_config *csi2,
 #else
 		struct ipu6_isys_csi2_config *csi2,
@@ -192,7 +192,7 @@ struct ipu_i2c_new_dev {
 struct ipu_camera_module_data {
 	struct list_head list;
 	struct ipu_isys_subdev_info sd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_ISYS)
 	struct ipu_isys_csi2_config csi2;
 #else
 	struct ipu6_isys_csi2_config csi2;

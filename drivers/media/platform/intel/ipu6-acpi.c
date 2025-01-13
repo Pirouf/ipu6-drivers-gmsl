@@ -34,7 +34,7 @@
 #include <linux/pci.h>
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) ||  defined(CONFIG_BACKWARD_INTEL_ISYS)
 #include <media/ipu-isys.h>
 #include "ipu.h"
 #else
@@ -228,7 +228,7 @@ int ipu_get_acpi_devices(void *driver_data,
 				struct ipu_isys_subdev_pdata **built_in_pdata,
 				int (*fn)
 				(struct device *, void *,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) ||  defined(CONFIG_BACKWARD_INTEL_ISYS)
 				 struct ipu_isys_csi2_config *csi2,
 #else
 				 struct ipu6_isys_csi2_config *csi2,

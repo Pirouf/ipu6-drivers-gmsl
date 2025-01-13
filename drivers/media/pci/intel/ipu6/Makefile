@@ -48,6 +48,8 @@ obj-$(CONFIG_VIDEO_INTEL_IPU6)		+= intel-ipu6-isys.o
 
 obj-$(CONFIG_VIDEO_INTEL_IPU6)		+= psys/
 
+ccflags-y += -DCONFIG_BACKWARD_INTEL_PSYS
+ccflags-y += -DCONFIG_BACKWARD_INTEL_ISYS
 ccflags-y += -I$(srcpath)/$(src)/../../../../../include/
 ccflags-y += -I$(srcpath)/$(src)/psys/
 ccflags-y += -I$(srcpath)/$(src)/../

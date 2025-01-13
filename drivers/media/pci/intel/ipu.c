@@ -15,6 +15,9 @@
 #include <linux/timer.h>
 #include <linux/sched.h>
 #include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+#include <linux/vmalloc.h>
+#endif
 
 #include "ipu.h"
 #include "ipu-buttress.h"
