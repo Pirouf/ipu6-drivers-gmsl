@@ -50,14 +50,16 @@ void ipu_psys_scheduler_remove_kppg(struct ipu_psys_ppg *kppg,
 	struct sched_list *sc_list = get_sc_list(type);
 	struct ipu_psys_ppg *tmp0, *tmp1;
 	struct ipu_psys *psys = kppg->fh->psys;
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 
 	mutex_lock(&sc_list->lock);
 	list_for_each_entry_safe(tmp0, tmp1, &sc_list->list, sched_list) {
 		if (tmp0 == kppg) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 			dev_dbg(&psys->adev->dev,
 				 "remove from %s list, kppg(%d 0x%p) state %d\n",
 				 type == SCHED_START_LIST ? "start" : "stop",
@@ -79,12 +81,14 @@ void ipu_psys_scheduler_add_kppg(struct ipu_psys_ppg *kppg,
 	int cur_pri = kppg->pri_base + kppg->pri_dynamic;
 	struct sched_list *sc_list = get_sc_list(type);
 	struct ipu_psys *psys = kppg->fh->psys;
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
 #endif
+#endif
 	struct ipu_psys_ppg *tmp0, *tmp1;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	dev_dbg(&psys->adev->dev,
 #else
 	dev_dbg(dev,
@@ -101,7 +105,7 @@ void ipu_psys_scheduler_add_kppg(struct ipu_psys_ppg *kppg,
 	}
 
 	if (is_kppg_in_list(kppg, &sc_list->list)) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev, "kppg already in list\n");
 #else
 		dev_dbg(dev, "kppg already in list\n");
@@ -112,7 +116,7 @@ void ipu_psys_scheduler_add_kppg(struct ipu_psys_ppg *kppg,
 	list_for_each_entry_safe(tmp0, tmp1, &sc_list->list, sched_list) {
 		int tmp_pri = tmp0->pri_base + tmp0->pri_dynamic;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev,
 #else
 		dev_dbg(dev,
@@ -139,8 +143,10 @@ static int ipu_psys_detect_resource_contention(struct ipu_psys_ppg *kppg)
 {
 	struct ipu_psys_resource_pool *try_res_pool;
 	struct ipu_psys *psys = kppg->fh->psys;
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	int ret = 0;
 	int state;
@@ -158,7 +164,7 @@ static int ipu_psys_detect_resource_contention(struct ipu_psys_ppg *kppg)
 
 	ret = ipu_psys_res_pool_init(try_res_pool);
 	if (ret < 0) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_err(&psys->adev->dev, "unable to alloc pg resources\n");
 #else
 		dev_err(dev, "unable to alloc pg resources\n");
@@ -168,7 +174,7 @@ static int ipu_psys_detect_resource_contention(struct ipu_psys_ppg *kppg)
 	}
 
 	ipu_psys_resource_copy(&psys->res_pool_running, try_res_pool);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	ret = ipu_psys_try_allocate_resources(&psys->adev->dev,
 					      kppg->kpg->pg,
 #else
@@ -237,8 +243,10 @@ static void ipu_psys_scheduler_update_start_ppg_priority(void)
 static bool ipu_psys_scheduler_switch_ppg(struct ipu_psys *psys)
 {
 	struct sched_list *sc_list = get_sc_list(SCHED_STOP_LIST);
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	struct ipu_psys_ppg *kppg;
 	bool resched = false;
@@ -246,7 +254,7 @@ static bool ipu_psys_scheduler_switch_ppg(struct ipu_psys *psys)
 	mutex_lock(&sc_list->lock);
 	if (list_empty(&sc_list->list)) {
 		/* some ppgs are RESUMING/STARTING */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev, "no candidated stop ppg\n");
 #else
 		dev_dbg(dev, "no candidated stop ppg\n");
@@ -260,7 +268,7 @@ static bool ipu_psys_scheduler_switch_ppg(struct ipu_psys *psys)
 
 	mutex_lock(&kppg->mutex);
 	if (!(kppg->state & PPG_STATE_STOP)) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev, "s_change:%s: %p %d -> %d\n",
 #else
 		dev_dbg(dev, "s_change:%s: %p %d -> %d\n",
@@ -283,8 +291,10 @@ static bool ipu_psys_scheduler_switch_ppg(struct ipu_psys *psys)
 static bool ipu_psys_scheduler_ppg_start(struct ipu_psys *psys)
 {
 	struct sched_list *sc_list = get_sc_list(SCHED_START_LIST);
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	struct ipu_psys_ppg *kppg, *kppg0;
 	bool stopping_existed = false;
@@ -294,7 +304,7 @@ static bool ipu_psys_scheduler_ppg_start(struct ipu_psys *psys)
 
 	mutex_lock(&sc_list->lock);
 	if (list_empty(&sc_list->list)) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev, "no ppg to start\n");
 #else
 		dev_dbg(dev, "no ppg to start\n");
@@ -309,7 +319,7 @@ static bool ipu_psys_scheduler_ppg_start(struct ipu_psys *psys)
 
 		ret = ipu_psys_detect_resource_contention(kppg);
 		if (ret < 0) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 			dev_dbg(&psys->adev->dev,
 				"ppg %d resource detect failed(%d)\n",
 #else
@@ -326,14 +336,14 @@ static bool ipu_psys_scheduler_ppg_start(struct ipu_psys *psys)
 				    ipu_psys_scheduler_switch_ppg(psys)) {
 					return true;
 				}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 				dev_dbg(&psys->adev->dev,
 					"ppg is suspending/stopping\n");
 #else
 				dev_dbg(dev, "ppg is suspending/stopping\n");
 #endif
 			} else {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 				dev_err(&psys->adev->dev,
 					"detect resource error %d\n", ret);
 #else
@@ -433,10 +443,12 @@ static void ipu_psys_update_ppg_state_by_kcmd(struct ipu_psys *psys,
 					      struct ipu_psys_ppg *kppg,
 					      struct ipu_psys_kcmd *kcmd)
 {
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
 #else
 	struct device *dev = &psys->adev->dev;
+#endif
 #endif
 	int old_ppg_state = kppg->state;
 
@@ -468,13 +480,17 @@ static void ipu_psys_update_ppg_state_by_kcmd(struct ipu_psys *psys,
 		} else if (kcmd->state == KCMD_STATE_PPG_STOP) {
 			ipu_psys_kcmd_complete(kppg, kcmd, 0);
 		} else if (kcmd->state == KCMD_STATE_PPG_ENQUEUE) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
+			dev_err(&psys->adev->dev, "ppg %p stopped!\n", kppg);
+#else
 			dev_err(dev, "ppg %p stopped!\n", kppg);
+#endif
 			ipu_psys_kcmd_complete(kppg, kcmd, -EIO);
 		}
 	}
 
 	if (old_ppg_state != kppg->state)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev, "s_change:%s: %p %d -> %d\n",
 #else
 		dev_dbg(dev, "s_change:%s: %p %d -> %d\n",
@@ -582,13 +598,15 @@ static bool has_pending_kcmd(struct ipu_psys *psys)
 
 static bool ipu_psys_scheduler_exit_power_gating(struct ipu_psys *psys)
 {
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
 
 #endif
+#endif
 	/* Assume power gating process can be aborted directly during START */
 	if (psys->power_gating == PSYS_POWER_GATED) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev, "powergating: exit ---\n");
 #else
 		dev_dbg(dev, "powergating: exit ---\n");
@@ -601,8 +619,10 @@ static bool ipu_psys_scheduler_exit_power_gating(struct ipu_psys *psys)
 
 static bool ipu_psys_scheduler_enter_power_gating(struct ipu_psys *psys)
 {
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	struct ipu_psys_scheduler *sched;
 	struct ipu_psys_ppg *kppg, *tmp;
@@ -614,7 +634,7 @@ static bool ipu_psys_scheduler_enter_power_gating(struct ipu_psys *psys)
 	if (psys->power_gating == PSYS_POWER_NORMAL &&
 	    is_ready_to_enter_power_gating(psys)) {
 		/* Enter power gating */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev, "powergating: enter +++\n");
 #else
 		dev_dbg(dev, "powergating: enter +++\n");
@@ -665,8 +685,10 @@ static bool ipu_psys_scheduler_enter_power_gating(struct ipu_psys *psys)
 
 void ipu_psys_run_next(struct ipu_psys *psys)
 {
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	/* Wake up scheduler due to unfinished work */
 	bool need_trigger = false;
@@ -701,7 +723,7 @@ void ipu_psys_run_next(struct ipu_psys *psys)
 	}
 
 	if (need_trigger && !wait_fw_finish) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_dbg(&psys->adev->dev, "scheduler: wake up\n");
 #else
 		dev_dbg(dev, "scheduler: wake up\n");

@@ -10,8 +10,10 @@
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
 
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 5)
 #include "ipu6-dma.h"
+#endif
 #endif
 #include "ipu6-ppg.h"
 
@@ -56,9 +58,13 @@ static struct ipu_psys_buffer_set *
 __get_buf_set(struct ipu_psys_fh *fh, size_t buf_set_size)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 5)
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 	struct ipu6_bus_device *adev = fh->psys->adev;
+#else
+	struct device *dev = &fh->psys->adev->dev;
+#endif
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
-	struct device *dev = &fh->psys->adev->auxdev.dev;
+	struct device *dev = &fh->psys->adev->dev;
 #endif
 	struct ipu_psys_buffer_set *kbuf_set;
 	struct ipu_psys_scheduler *sched = &fh->sched;
@@ -83,7 +89,7 @@ __get_buf_set(struct ipu_psys_fh *fh, size_t buf_set_size)
 	kbuf_set->kaddr = dma_alloc_attrs(&fh->psys->adev->dev,
 					  buf_set_size, &kbuf_set->dma_addr,
 					  GFP_KERNEL, 0);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 5)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 5) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	kbuf_set->kaddr = dma_alloc_attrs(dev, buf_set_size,
 					  &kbuf_set->dma_addr, GFP_KERNEL, 0);
 #else
@@ -110,8 +116,10 @@ ipu_psys_create_buffer_set(struct ipu_psys_kcmd *kcmd,
 {
 	struct ipu_psys_fh *fh = kcmd->fh;
 	struct ipu_psys *psys = fh->psys;
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	struct ipu_psys_buffer_set *kbuf_set;
 	size_t buf_set_size;
@@ -121,7 +129,7 @@ ipu_psys_create_buffer_set(struct ipu_psys_kcmd *kcmd,
 
 	kbuf_set = __get_buf_set(fh, buf_set_size);
 	if (!kbuf_set) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_err(&psys->adev->dev, "failed to create buffer set\n");
 #else
 		dev_err(dev, "failed to create buffer set\n");
@@ -137,14 +145,16 @@ ipu_psys_create_buffer_set(struct ipu_psys_kcmd *kcmd,
 					    kbuf_set->dma_addr);
 	keb = kcmd->kernel_enable_bitmap;
 	ipu_fw_psys_ppg_buffer_set_set_keb(kbuf_set->buf_set, keb);
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 5)
 	ipu6_dma_sync_single(psys->adev, kbuf_set->dma_addr, buf_set_size);
+#endif
 #endif
 
 	return kbuf_set;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 int ipu_psys_ppg_get_bufset(struct ipu_psys_kcmd *kcmd,
 			    struct ipu_psys_ppg *kppg)
 {
@@ -797,8 +807,10 @@ bool ipu_psys_ppg_enqueue_bufsets(struct ipu_psys_ppg *kppg)
 {
 	struct ipu_psys_kcmd *kcmd, *kcmd0;
 	struct ipu_psys *psys = kppg->fh->psys;
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	bool need_resume = false;
 
@@ -818,7 +830,7 @@ bool ipu_psys_ppg_enqueue_bufsets(struct ipu_psys_ppg *kppg)
 
 				ret = ipu_fw_psys_ppg_enqueue_bufs(kcmd);
 				if (ret) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 					dev_err(&psys->adev->dev,
 #else
 					dev_err(dev,
@@ -829,7 +841,7 @@ bool ipu_psys_ppg_enqueue_bufsets(struct ipu_psys_ppg *kppg)
 				}
 				list_move_tail(&kcmd->list,
 					       &kppg->kcmds_processing_list);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 				dev_dbg(&psys->adev->dev,
 #else
 				dev_dbg(dev,
@@ -847,8 +859,10 @@ bool ipu_psys_ppg_enqueue_bufsets(struct ipu_psys_ppg *kppg)
 
 void ipu_psys_enter_power_gating(struct ipu_psys *psys)
 {
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	struct ipu_psys_scheduler *sched;
 	struct ipu_psys_ppg *kppg, *tmp;
@@ -872,7 +886,7 @@ void ipu_psys_enter_power_gating(struct ipu_psys *psys)
 				mutex_unlock(&kppg->mutex);
 				continue;
 			}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 			pm_runtime_put(&psys->adev->dev);
 #else
 			pm_runtime_put(dev);
@@ -885,8 +899,10 @@ void ipu_psys_enter_power_gating(struct ipu_psys *psys)
 
 void ipu_psys_exit_power_gating(struct ipu_psys *psys)
 {
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &psys->adev->auxdev.dev;
+#endif
 #endif
 	struct ipu_psys_scheduler *sched;
 	struct ipu_psys_ppg *kppg, *tmp;
@@ -909,7 +925,7 @@ void ipu_psys_exit_power_gating(struct ipu_psys *psys)
 				continue;
 			}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 			ret = pm_runtime_get_sync(&psys->adev->dev);
 			if (ret < 0) {
 				dev_err(&psys->adev->dev,

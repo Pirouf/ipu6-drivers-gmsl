@@ -6,7 +6,7 @@
 #include <uapi/linux/ipu-psys.h>
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 #include "ipu-fw-com.h"
 #else
 #include "ipu6-fw-com.h"
@@ -20,7 +20,7 @@ int ipu_fw_psys_pg_start(struct ipu_psys_kcmd *kcmd)
 	return 0;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 int ipu_fw_psys_pg_disown(struct ipu_psys_kcmd *kcmd)
 {
 	struct ipu_fw_psys_cmd *psys_cmd;
@@ -245,8 +245,10 @@ int ipu_fw_psys_terminal_set(struct ipu_fw_psys_terminal *terminal,
 			     struct ipu_psys_kcmd *kcmd,
 			     u32 buffer, unsigned int size)
 {
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &kcmd->fh->psys->adev->auxdev.dev;
+#endif
 #endif
 	u32 type;
 	u32 buffer_state;
@@ -274,7 +276,7 @@ int ipu_fw_psys_terminal_set(struct ipu_fw_psys_terminal *terminal,
 		buffer_state = IPU_FW_PSYS_BUFFER_EMPTY;
 		break;
 	default:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_err(&kcmd->fh->psys->adev->dev,
 			"unknown terminal type: 0x%x\n", type);
 #else
@@ -366,7 +368,7 @@ int ipu_fw_psys_ppg_set_buffer_set(struct ipu_psys_kcmd *kcmd,
 				   struct ipu_fw_psys_terminal *terminal,
 				   int terminal_idx, u32 buffer)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	u32 type;
 	u32 buffer_state;
 	u32 *buffer_ptr;
@@ -402,7 +404,7 @@ int ipu_fw_psys_ppg_set_buffer_set(struct ipu_psys_kcmd *kcmd,
 		buffer_state = IPU_FW_PSYS_BUFFER_EMPTY;
 		break;
 	default:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 		dev_err(&kcmd->fh->psys->adev->dev,
 			"unknown terminal type: 0x%x\n", type);
 #else
@@ -481,15 +483,17 @@ ipu_fw_psys_ppg_create_buffer_set(struct ipu_psys_kcmd *kcmd,
 
 int ipu_fw_psys_ppg_enqueue_bufs(struct ipu_psys_kcmd *kcmd)
 {
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 	struct device *dev = &kcmd->fh->psys->adev->auxdev.dev;
+#endif
 #endif
 	struct ipu_fw_psys_cmd *psys_cmd;
 	unsigned int queue_id;
 	int ret = 0;
 	unsigned int size;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	if (ipu_ver == IPU_VER_6SE)
 #else
 	if (ipu_ver == IPU6_VER_6SE)
@@ -502,7 +506,7 @@ int ipu_fw_psys_ppg_enqueue_bufs(struct ipu_psys_kcmd *kcmd)
 	if (queue_id >= size)
 		return -EINVAL;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	psys_cmd = ipu_send_get_token(kcmd->fh->psys->fwcom, queue_id);
 	if (!psys_cmd) {
 		dev_err(&kcmd->fh->psys->adev->dev,
@@ -523,7 +527,7 @@ int ipu_fw_psys_ppg_enqueue_bufs(struct ipu_psys_kcmd *kcmd)
 	psys_cmd->msg = 0;
 	psys_cmd->context_handle = kcmd->kbuf_set->buf_set->ipu_virtual_address;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	ipu_send_put_token(kcmd->fh->psys->fwcom, queue_id);
 #else
 	ipu6_send_put_token(kcmd->fh->psys->fwcom, queue_id);
@@ -542,7 +546,7 @@ void ipu_fw_psys_ppg_set_base_queue_id(struct ipu_psys_kcmd *kcmd, u8 queue_id)
 	kcmd->kpg->pg->base_queue_id = queue_id;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 int ipu_fw_psys_open(struct ipu_psys *psys)
 {
 	int retry = IPU_PSYS_OPEN_RETRY, retval;

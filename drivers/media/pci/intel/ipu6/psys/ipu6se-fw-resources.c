@@ -18,7 +18,7 @@
 /*
  * Cell types by cell IDs
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 const u8 ipu6se_fw_psys_cell_types[IPU6SE_FW_PSYS_N_CELL_ID] = {
 #else
 static const u8 ipu6se_fw_psys_cell_types[IPU6SE_FW_PSYS_N_CELL_ID] = {
@@ -39,7 +39,7 @@ static const u8 ipu6se_fw_psys_cell_types[IPU6SE_FW_PSYS_N_CELL_ID] = {
 	IPU6SE_FW_PSYS_ACC_ISA_TYPE_ID  /* PAF */
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 const u16 ipu6se_fw_num_dev_channels[IPU6SE_FW_PSYS_N_DEV_CHN_ID] = {
 #else
 static const u16 ipu6se_fw_num_dev_channels[IPU6SE_FW_PSYS_N_DEV_CHN_ID] = {
@@ -50,7 +50,7 @@ static const u16 ipu6se_fw_num_dev_channels[IPU6SE_FW_PSYS_N_DEV_CHN_ID] = {
 	IPU6SE_FW_PSYS_DEV_CHN_DMA_ISA_MAX_SIZE,
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 const u16 ipu6se_fw_psys_mem_size[IPU6SE_FW_PSYS_N_MEM_ID] = {
 #else
 static const u16 ipu6se_fw_psys_mem_size[IPU6SE_FW_PSYS_N_MEM_ID] = {
@@ -61,7 +61,7 @@ static const u16 ipu6se_fw_psys_mem_size[IPU6SE_FW_PSYS_N_MEM_ID] = {
 	IPU6SE_FW_PSYS_DMEM1_MAX_SIZE
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 const u16 ipu6se_fw_psys_dfms[IPU6SE_FW_PSYS_N_DEV_DFM_ID] = {
 #else
 static const u16 ipu6se_fw_psys_dfms[IPU6SE_FW_PSYS_N_DEV_DFM_ID] = {
@@ -70,7 +70,7 @@ static const u16 ipu6se_fw_psys_dfms[IPU6SE_FW_PSYS_N_DEV_DFM_ID] = {
 	IPU6SE_FW_PSYS_DEV_DFM_ISL_EMPTY_PORT_ID_MAX_SIZE
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 const u8
 #else
 static const u8

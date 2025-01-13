@@ -13,7 +13,7 @@
 #include "ipu-psys.h"
 
 struct ipu6_psys_hw_res_variant hw_var;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 void ipu6_psys_hw_res_variant_init(void)
 {
 	if (ipu_ver == IPU_VER_6SE) {
@@ -205,7 +205,7 @@ int ipu_psys_res_pool_init(struct ipu_psys_resource_pool *pool)
 	}
 
 	spin_lock(&pool->queues_lock);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	if (ipu_ver == IPU_VER_6SE)
 #else
 	if (ipu_ver == IPU6_VER_6SE)
@@ -417,7 +417,7 @@ int ipu_psys_allocate_cmd_queue_res(struct ipu_psys_resource_pool *pool)
 	size = IPU6_FW_PSYS_N_PSYS_CMD_QUEUE_ID;
 	start = IPU6_FW_PSYS_CMD_QUEUE_PPG0_COMMAND_ID;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	if (ipu_ver == IPU_VER_6SE) {
 #else
 	if (ipu_ver == IPU6_VER_6SE) {
