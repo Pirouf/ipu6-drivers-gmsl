@@ -294,6 +294,9 @@ struct imx390 {
 	bool streaming;
 
 	struct imx390_platform_data *platform_data;
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+	struct gpio_desc *reset_gpio;
+#endif
 };
 
 #include "imx390-mode-1280x960-CROP.h"
@@ -1095,6 +1098,23 @@ static u32 supported_formats[] = {
 	MEDIA_BUS_FMT_SGRBG12_1X12,
 };
 
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+static int imx390_reset(struct gpio_desc *reset_gpio)
+{
+	if (!IS_ERR_OR_NULL(reset_gpio)) {
+		gpiod_set_value_cansleep(reset_gpio, 0);
+		usleep_range(500, 1000);
+		gpiod_set_value_cansleep(reset_gpio, 1);
+		/*Needs to sleep for quite a while before register writes*/
+		usleep_range(200 * 1000, 200 * 1000 + 500);
+
+		return 0;
+	}
+
+	return -EINVAL;
+}
+#endif
+
 static int imx390_read_reg(struct imx390 *imx390, u16 reg, u16 len, u32 *val)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx390->sd);
@@ -1750,6 +1770,10 @@ static int __maybe_unused imx390_resume(struct device *dev)
 	}
 
 	mutex_lock(&imx390->mutex);
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+	if (imx390->reset_gpio != NULL)
+		imx390_reset(imx390->reset_gpio);
+#endif
 	if (imx390->streaming) {
 		ret = imx390_start_streaming(imx390);
 		if (ret) {
@@ -2055,14 +2079,34 @@ static int imx390_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	imx390->platform_data = client->dev.platform_data;
-	if (imx390->platform_data == NULL) {
-		dev_err(&client->dev, "no platform data provided\n");
-		return -EINVAL;
+	if (imx390->platform_data == NULL)
+		dev_warn(&client->dev, "no platform data provided\n");
+
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+	/* reset sensor */
+	imx390->reset_gpio = devm_gpiod_get_optional(&client->dev, "reset",
+						     GPIOD_OUT_HIGH);
+	if (IS_ERR(imx390->reset_gpio))
+		return -EPROBE_DEFER;
+	else if (imx390->reset_gpio == NULL)
+		dev_warn(&client->dev, "Reset GPIO not found");
+	else {
+		dev_dbg(&client->dev, "Found reset GPIO");
+		imx390_reset(imx390->reset_gpio);
 	}
+#endif
 
 	/* initialize subdevice */
 	sd = &imx390->sd;
 	v4l2_i2c_subdev_init(sd, client, &imx390_subdev_ops);
+	if (imx390->platform_data) {
+		if (imx390->platform_data->suffix)
+			snprintf(sd->name,
+				 sizeof(sd->name), "imx390 %c",
+				 imx390->platform_data->suffix);
+	} else {
+	  v4l2_i2c_subdev_set_name(sd, client, dev_name(&client->dev), NULL);
+	}
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 	sd->internal_ops = &imx390_internal_ops;
 	sd->entity.ops = &imx390_subdev_entity_ops;
@@ -2082,11 +2126,6 @@ static int imx390_probe(struct i2c_client *client)
 		dev_err(&client->dev, "failed to find sensor: %d", ret);
 		return ret;
 	}
-
-	if (imx390->platform_data->suffix)
-		snprintf(imx390->sd.name,
-				sizeof(imx390->sd.name), "imx390 %c",
-				imx390->platform_data->suffix);
 
 	mutex_init(&imx390->mutex);
 
