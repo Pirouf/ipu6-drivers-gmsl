@@ -2718,22 +2718,12 @@ int start_stream_firmware(struct ipu_isys_video *av,
 	}
 
 	reinit_completion(&ip->stream_start_completion);
+	dev_dbg(dev, "start stream: start\n");
 
-	if (bl && source_pad && (is_support_vc(source_pad, ip))) {
-		send_type = IPU_FW_ISYS_SEND_TYPE_STREAM_START_AND_CAPTURE;
-		ipu_fw_isys_dump_frame_buff_set(dev, buf,
-						stream_cfg->nof_output_pins);
-		rval = ipu_fw_isys_complex_cmd(av->isys,
-					       ip->stream_handle,
-					       buf, to_dma_addr(msg),
-					       sizeof(*buf),
-					       send_type);
-	} else {
-		send_type = IPU_FW_ISYS_SEND_TYPE_STREAM_START;
-		rval = ipu_fw_isys_simple_cmd(av->isys,
-					      ip->stream_handle,
-					      send_type);
-	}
+	send_type = IPU_FW_ISYS_SEND_TYPE_STREAM_START;
+	rval = ipu_fw_isys_simple_cmd(av->isys,
+				      ip->stream_handle,
+				      send_type);
 
 	if (rval < 0) {
 		dev_err(dev, "can't start streaming (%d)\n", rval);
@@ -2754,7 +2744,7 @@ int start_stream_firmware(struct ipu_isys_video *av,
 		rval = -EIO;
 		goto out_stream_close;
 	}
-	if (source_pad && !is_support_vc(source_pad, ip)) {
+	if (source_pad) {
 		if (bl) {
 			dev_dbg(dev, "start stream: capture\n");
 
