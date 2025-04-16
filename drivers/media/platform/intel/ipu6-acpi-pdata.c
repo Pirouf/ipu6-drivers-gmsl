@@ -18,6 +18,7 @@
 #include "ipu6-isys.h"
 #endif
 #endif
+#include <media/max9295_pdata.h>
 #include <media/ipu-acpi.h>
 #include <media/ipu-acpi-pdata.h>
 
@@ -638,7 +639,9 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 
 		/* board info */
 		strscpy(serdes_sdinfo[i].board_info.type, sensor_name, I2C_NAME_SIZE);
-		if (!strcmp(sensor_name, D457_NAME)) {
+		if (!strcmp(sensor_name, D457_NAME) ||
+		    !strcmp(sensor_name, IMX390_NAME) ||
+		    !strcmp(sensor_name, ISX031_NAME))) {
 			if (i == 0)
 				serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr;
 			else
@@ -650,7 +653,8 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 
 		/* serdes_subdev_info */
 		serdes_sdinfo[i].rx_port = i;
-		if (!strcmp(sensor_name, D457_NAME))
+		if (!strcmp(sensor_name, D457_NAME) ||
+		    !strcmp(sensor_name, ISX031_NAME))
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr;
 		else
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr +
@@ -719,7 +723,9 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		pr_debug("IPU6 ACPI: %s - Serdes connection", __func__);
 
 		/* use ascii */
-		if (!strcmp(sensor_name, D457_NAME) && port >= 0) {
+		if ((!strcmp(sensor_name, D457_NAME) ||
+		     !strcmp(sensor_name, ISX031_NAME) ||
+		     !strcmp(sensor_name, IMX390_NAME)) && port >= 0) {
 			pdata->suffix = port + SUFFIX_BASE + 1;
 			pr_info("IPU6 ACPI: create %s %c, on deserializer port %d",
 				sensor_name, pdata->suffix, serdes_info.deser_num);
@@ -735,6 +741,8 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 			set_ti960_gpio(ctl_data, &pdata);
 
 		pdata->link_freq_mbps = link_freq;
+		if (!strcmp(sensor_name, IMX390_NAME) && !strcmp(hid_name, "INTC10C1"))
+			set_ti960_gpio(ctl_data, &pdata);
 		pdata->deser_nlanes = deser_lanes;
 		pdata->ser_nlanes = lanes;
 		set_serdes_subdev(sensor_sd, dev, &pdata, sensor_name, hid_name, lanes, addr, subdev_num);

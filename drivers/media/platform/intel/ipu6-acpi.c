@@ -51,9 +51,7 @@
 #include <media/i2c/lt6911uxe.h>
 #include <media/i2c/imx390.h>
 #include <media/i2c/ti960.h>
-#if IS_ENABLED(CONFIG_VIDEO_ISX031)
 #include <media/i2c/isx031.h>
-#endif
 #include <media/i2c/d4xx_pdata.h>
 
 static LIST_HEAD(devices);
@@ -86,6 +84,8 @@ static const struct ipu_acpi_devices supported_devices[] = {
 		IMX390_D3CM_I2C_ADDRESS, 1600 },// new D3 IMX390 HID
 #if IS_ENABLED(CONFIG_VIDEO_MAX9X)
 #if IS_ENABLED(CONFIG_VIDEO_ISX031)
+	{ "INTC1031", ISX031_NAME, get_sensor_pdata, NULL, 0, TYPE_SERDES, ISX031_NAME,
+		ISX031_I2C_ADDRESS, 1600  },// GMSL2 MAX9295+ISX031 HID
 	{ "INTC031M", ISX031_NAME, get_sensor_pdata, NULL, 0, TYPE_SERDES, "max9296",
 		ISX031_I2C_ADDRESS, 1600 },	// D3 ISX031 HID
 #endif
