@@ -640,6 +640,7 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		/* board info */
 		strscpy(serdes_sdinfo[i].board_info.type, sensor_name, I2C_NAME_SIZE);
 		if (!strcmp(sensor_name, D457_NAME) ||
+		    !strcmp(sensor_name, AR0234_NAME) ||
 		    !strcmp(sensor_name, IMX390_NAME) ||
 		    !strcmp(sensor_name, ISX031_NAME))) {
 			if (i == 0)
@@ -654,6 +655,7 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		/* serdes_subdev_info */
 		serdes_sdinfo[i].rx_port = i;
 		if (!strcmp(sensor_name, D457_NAME) ||
+		    !strcmp(sensor_name, AR0234_NAME) ||
 		    !strcmp(sensor_name, ISX031_NAME))
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr;
 		else
@@ -724,6 +726,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 
 		/* use ascii */
 		if ((!strcmp(sensor_name, D457_NAME) ||
+		     !strcmp(sensor_name, AR0234_NAME) ||
 		     !strcmp(sensor_name, ISX031_NAME) ||
 		     !strcmp(sensor_name, IMX390_NAME)) && port >= 0) {
 			pdata->suffix = port + SUFFIX_BASE + 1;
