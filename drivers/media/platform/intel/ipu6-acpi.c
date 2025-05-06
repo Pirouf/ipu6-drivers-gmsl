@@ -53,6 +53,7 @@
 #include <media/i2c/ti960.h>
 #include <media/i2c/isx031.h>
 #include <media/i2c/d4xx_pdata.h>
+#include <media/max929x_pdata.h>
 
 static LIST_HEAD(devices);
 

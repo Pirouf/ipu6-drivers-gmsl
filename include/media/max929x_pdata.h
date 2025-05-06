@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (C) 2024 Intel Corporation */
 
-#ifndef MAX9295_H
-#define MAX9295_H
+#ifndef MAX929X_H
+#define MAX929X_H
 
-#define MAX9295_NAME "max9295"
+#define MAX929X_NAME "max929x"
 #define MAX9295_I2C_ADDRESS 0x40
 
 /* set this flag if this module needs serializer initialization */
