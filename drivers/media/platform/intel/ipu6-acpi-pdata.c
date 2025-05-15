@@ -641,8 +641,12 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		/* board info */
 		strscpy(serdes_sdinfo[i].board_info.type, sensor_name, I2C_NAME_SIZE);
 		if (!strcmp(serdes_name, TI960_NAME))
+			// keep TI960 legacy
 			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr +
 			serdes_info.sensor_num + i;
+		else if (subdev_port > 1)
+			//For  pprunit > 1, autoincrement i2c sensor and serializer pdata address
+			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr + i;
 		else
 			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr;
 
@@ -653,6 +657,9 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		if (!strcmp(serdes_name, TI960_NAME))
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr +
 			serdes_info.sensor_num + i;
+		else if (subdev_port > 1)
+			//For  pprunit > 1,  autoincrement i2c sensor and serializer pdata address
+			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr + i;
 		else
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr;
 
