@@ -26,6 +26,7 @@
 #define MIN_SERDES_I2C 3
 #define SENSOR_2X_I2C 5
 #define SUFFIX_BASE 96
+#define SUFFIX_BASE_OFFSET 5 // SERDES aggregated-link offset
 #define MSG_LEN 128
 
 static struct ipu_isys_subdev_pdata *ptr_built_in_pdata;
@@ -71,6 +72,7 @@ static void print_serdes_sdinfo(struct serdes_subdev_info *sdinfo)
 	pr_debug("\t\tphy_i2c_addr \t\t= 0x%x", sdinfo->phy_i2c_addr);
 	pr_debug("\t\tser_alias \t\t= 0x%x", sdinfo->ser_alias);
 	pr_debug("\t\tsuffix \t\t\t= %s", sdinfo->suffix);
+	pr_debug("\t\taggregated_link \t= %d", sdinfo->aggregated_link);
 	pr_debug("\t\tboard_info.type \t= %s", sdinfo->board_info.type);
 	pr_debug("\t\tboard_info.addr \t= 0x%x", sdinfo->board_info.addr);
 
@@ -312,6 +314,8 @@ static void update_serdes_subdev(struct device *dev,
 				new_sdinfo->rx_port);
 			update_short(dev, "SdInfo ser_alias", &old_sdinfo->ser_alias,
 				new_sdinfo->ser_alias);
+			update_int(dev, "SdInfo aggregated_link", &old_sdinfo->aggregated_link,
+				new_sdinfo->aggregated_link);
 			update_short(dev, "SdInfo board_info.addr", &old_sdinfo->board_info.addr,
 				new_sdinfo->board_info.addr);
 
@@ -619,7 +623,8 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		unsigned int addr,
 		unsigned int subdev_num)
 {
-	int i;
+	int i,j;
+	int serdes_suffix;
 	struct serdes_module_pdata *module_pdata[PORT_NR];
 	struct serdes_subdev_info *serdes_sdinfo;
 	size_t subdev_size = subdev_num * sizeof(*serdes_sdinfo);
@@ -644,11 +649,8 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 			// keep TI960 legacy
 			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr +
 			serdes_info.sensor_num + i;
-		else if (subdev_port > 1)
-			//For  pprunit > 1, autoincrement i2c sensor and serializer pdata address
-			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr + i;
 		else
-			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr;
+			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr + i;
 
 		serdes_sdinfo[i].board_info.platform_data = module_pdata[i];
 
@@ -657,15 +659,69 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		if (!strcmp(serdes_name, TI960_NAME))
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr +
 			serdes_info.sensor_num + i;
-		else if (subdev_port > 1)
-			//For  pprunit > 1,  autoincrement i2c sensor and serializer pdata address
-			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr + i;
 		else
-			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr;
+			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr + i;
 
 		serdes_sdinfo[i].phy_i2c_addr = serdes_info.phy_i2c_addr;
-		snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c-%d",
-			 SUFFIX_BASE + i + 1, port);
+
+		/* define namespacing +6 offset (suffix a -> g ), for :
+		/*   - pprunit > 1, set # of deserializer aggregated-link  */
+		/*   - pprunit = 1, prior pdata already defined same deserializer, e.g same i2c-bus and i2c-addr */
+		pr_debug("IPU6 ACPI:  %s current i2c_bdf %s serdes %d-%d, prior %s",
+			serdes_name,
+			serdes_info.i2c_adapter_bdf,
+			serdes_info.deser_num,
+			subdev_num,
+			serdes_info.i2c_adapter_bdf_2);
+		pr_debug("IPU6 ACPI:  %s current i2c_addr 0x%x serdes %d-%d, prior 0x%x",
+			serdes_name,
+			serdes_info.des_map_addr,
+			serdes_info.deser_num,
+			subdev_num,
+			serdes_info.des_map_addr_2);
+		pr_debug("IPU6 ACPI:  %s current i2c_addr 0x%x sensor %d-%d, prior 0x%x",
+			serdes_name,
+			serdes_info.sensor_map_addr,
+			serdes_info.deser_num,
+			subdev_num,
+			serdes_info.sensor_map_addr_2);
+
+		if (!strcmp(serdes_name, TI960_NAME)) {
+			// keep TI960 legacy
+			serdes_sdinfo[i].aggregated_link = 0;
+			serdes_suffix = SUFFIX_BASE + serdes_info.sensor_num + i + 1;
+		} else if (i >= 2) {
+			serdes_sdinfo[i].aggregated_link = i - 1;
+			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + i - 1;
+			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
+				serdes_name,
+				serdes_suffix,
+				serdes_info.deser_num);
+		} else if (( subdev_num == 1 ) &&
+			   ( serdes_info.des_map_addr == serdes_info.des_map_addr_2 ) &&
+			   ( !strcmp(serdes_info.i2c_adapter_bdf, serdes_info.i2c_adapter_bdf_2))) {
+			serdes_sdinfo[i].aggregated_link = 1;
+			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1;
+			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
+				serdes_name,
+				serdes_suffix,
+				serdes_info.deser_num);
+		} else if (( subdev_num == 1 ) &&
+			   ( serdes_info.sensor_map_addr == serdes_info.sensor_map_addr_2 ) &&
+			   ( !strcmp(serdes_info.i2c_adapter_bdf, serdes_info.i2c_adapter_bdf_2))) {
+			serdes_sdinfo[i].aggregated_link = 1;
+			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1;
+			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
+				serdes_name,
+				serdes_suffix,
+				serdes_info.deser_num);
+		} else {
+			serdes_sdinfo[i].aggregated_link = 0;
+			serdes_suffix = (*pdata)->suffix + i;
+		}
+
+		snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c",
+			 serdes_suffix);
 	}
 
 	(*pdata)->subdev_info = serdes_sdinfo;
@@ -674,6 +730,7 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 	return 0;
 }
 
+static u8 suffix_offset = 1;
 static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		struct device *dev,
 		char sensor_name[I2C_NAME_SIZE],
@@ -732,6 +789,10 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 			pr_info("IPU6 ACPI: create %s %c, on TI960 deserializer port %d",
 				sensor_name, pdata->suffix, port);
 			set_ti960_gpio(ctl_data, &pdata);
+		} else if (serdes_name && port >= 0 && subdev_num >= 2) {
+			pdata->suffix = port + SUFFIX_BASE + 1;
+			pr_info("IPU6 ACPI: create %s %c, on %s aggregated-link deserializer port %d",
+				sensor_name, pdata->suffix, serdes_name, serdes_info.deser_num);
 		} else if (serdes_name && port >= 0) {
 			pdata->suffix = port + SUFFIX_BASE + 1;
 			pr_info("IPU6 ACPI: create %s %c, on %s deserializer port %d",
@@ -748,11 +809,9 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 			set_ti960_gpio(ctl_data, &pdata);
 
 		pdata->link_freq_mbps = link_freq;
-		if (!strcmp(sensor_name, IMX390_NAME) && !strcmp(hid_name, "INTC10C1"))
-			set_ti960_gpio(ctl_data, &pdata);
 		pdata->deser_nlanes = deser_lanes;
 		pdata->ser_nlanes = lanes;
-		set_serdes_subdev(sensor_sd, dev, &pdata, sensor_name, serdes_name, hid_name, lanes, addr, rx_port);
+		set_serdes_subdev(sensor_sd, dev, &pdata, sensor_name, serdes_name, hid_name, lanes, addr, subdev_num);
 
 		(*sensor_sd)->i2c.board_info.platform_data = pdata;
 		pdata->deser_board_info = &(*sensor_sd)->i2c.board_info;
@@ -768,26 +827,35 @@ static void set_serdes_info(struct device *dev, const char *sensor_name,
 {
 	int i;
 
-	serdes_info.deser_num = 0;
 	/* pprunit as num of sensor connected to deserializer */
 	serdes_info.rx_port = cam_data->pprunit;
 
 	/* i2c devices */
 	serdes_info.i2c_num = cam_data->i2c_num;
 
-	i = 1;
-	/* serializer mapped addr */
-	serdes_info.ser_map_addr = cam_data->i2c[i++].addr;
-
 	/* sensor mapped addr */
-	serdes_info.sensor_map_addr = cam_data->i2c[i++].addr;
+	if ( serdes_info.deser_num > 0 )
+		serdes_info.sensor_map_addr_2 = serdes_info.sensor_map_addr;
+	serdes_info.sensor_map_addr = cam_data->i2c[cam_data->i2c_num - 1].addr;
 
-	if (!strcmp(sensor_name, D457_NAME) && serdes_info.i2c_num == SENSOR_2X_I2C) {
-		/* 2nd group of mapped addr */
-		serdes_info.ser_map_addr_2 = cam_data->i2c[i++].addr;
-		serdes_info.sensor_map_addr_2 = cam_data->i2c[i++].addr;
-	}
+	/* serializer mapped addr */
+	if ( serdes_info.deser_num > 0 )
+		serdes_info.ser_map_addr_2 = serdes_info.ser_map_addr;
+	serdes_info.ser_map_addr = cam_data->i2c[cam_data->i2c_num - 2].addr;
 
+	/* deserializer mapped addr */
+	if ( serdes_info.deser_num > 0 )
+		serdes_info.des_map_addr_2 = serdes_info.des_map_addr;
+	serdes_info.des_map_addr = cam_data->i2c[cam_data->i2c_num - 3].addr;
+
+	/* serdes mapped i2c-adapter */
+	if ( serdes_info.deser_num > 0 )
+		strscpy(&serdes_info.i2c_adapter_bdf_2[0], serdes_info.i2c_adapter_bdf,
+			sizeof(serdes_info.i2c_adapter_bdf_2));
+	strscpy(&serdes_info.i2c_adapter_bdf[0], cam_data->i2c[cam_data->i2c_num - 1].bdf,
+		sizeof(serdes_info.i2c_adapter_bdf));
+
+	/* TI960 specific */
 	if (!strcmp(serdes_name, TI960_NAME))
 		serdes_info.gpio_powerup_seq = TI960_MAX_GPIO_POWERUP_SEQ;
 	else

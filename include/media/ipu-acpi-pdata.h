@@ -65,6 +65,7 @@ struct serdes_subdev_info {
 	unsigned short phy_i2c_addr;
 	unsigned short ser_alias;
 	char suffix[5]; /* suffix for subdevs */
+	int aggregated_link;
 };
 
 struct serdes_module_pdata {
@@ -101,10 +102,16 @@ struct serdes_local {
 
 	/* last mapped addr */
 	unsigned short ser_map_addr;
+	unsigned short des_map_addr;
 
-	/* 2nd group of mapped addr for 2x sensors */
+	/* last mapped i2c_adapter */
+	char i2c_adapter_bdf[32];
+
+	/* 2nd group of mapped addr and adapter for n-1 sensors */
 	unsigned short sensor_map_addr_2;
 	unsigned short ser_map_addr_2;
+	unsigned short des_map_addr_2;
+	char i2c_adapter_bdf_2[32];
 
 	/* current gpio_powerup_seq */
 	unsigned int gpio_powerup_seq;
@@ -117,6 +124,7 @@ struct serdes_local {
 
 	/* counter for total deser connected */
 	unsigned int deser_num;
+
 };
 
 #endif
