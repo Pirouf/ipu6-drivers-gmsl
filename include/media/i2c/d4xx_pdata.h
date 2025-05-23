@@ -15,7 +15,7 @@ struct d4xx_subdev_info {
 	unsigned short rx_port;
 	unsigned short phy_i2c_addr;
 	unsigned short ser_alias;
-	const char suffix; /* suffix for subdevs */
+	char suffix[5]; /* suffix for subdevs */
 	int aggregated_link;
 };
 
