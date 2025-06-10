@@ -2495,7 +2495,7 @@ ipu_isys_prepare_fw_cfg_default(struct ipu_isys_video *av,
 			"Unknown pin type, use metadata type as default\n");
 
 		pin_info->sensor_type = isys->sensor_info.sensor_metadata;
-		pin_info->snoopable = true;
+		pin_info->snoopable = false;
 		pin_info->error_handling_enable = false;
 	}
 	if (av->compression) {
@@ -2746,7 +2746,8 @@ int start_stream_firmware(struct ipu_isys_video *av,
 	}
 	if (source_pad) {
 		if (bl) {
-			dev_dbg(dev, "start stream: capture\n");
+			reinit_completion(&ip->stream_initialcapture_completion);
+			dev_dbg(dev, "start stream: initial capture\n");
 
 			ipu_fw_isys_dump_frame_buff_set(dev, buf, stream_cfg->nof_output_pins);
 			rval = ipu_fw_isys_complex_cmd(av->isys, ip->stream_handle, buf,
@@ -2757,13 +2758,23 @@ int start_stream_firmware(struct ipu_isys_video *av,
 				dev_err(dev, "can't queue buffers (%d)\n", rval);
 				goto out_stream_close;
 			}
+
+			tout = wait_for_completion_timeout(&ip->stream_initialcapture_completion,
+							   IPU_ISYS_CAPTURE_TIMEOUT_JIFFIES);
+			if (!tout) {
+				dev_warn(dev, "start initial capture time out\n");
+			} else if (ip->error) {
+				dev_warn(dev, "start initial capture error: %d\n", ip->error);
+			} else {
+				dev_dbg(dev, "start initial capture : complete\n");
+			}
+			rval = 0;
 		}
 	}
-	dev_dbg(dev, "start stream: complete\n");
 
-	dev_dbg(dev, "start stream: complete\n");
+	dev_info(dev, "start stream: complete\n");
 
-	return 0;
+	return rval;
 
 out_stream_close:
 	reinit_completion(&ip->stream_close_completion);
@@ -2780,17 +2791,14 @@ out_stream_close:
 					   IPU_LIB_CALL_TIMEOUT_JIFFIES);
 	if (!tout) {
 	        ipu_isys_queue_buf_flush(ip);
-		dev_err(dev, "stream close time out for entity %s\n",
-			av->vdev.entity.name);
+		dev_err(dev, "stream close time out\n");
 		rval = -ETIMEDOUT;
 	} else if (ip->error) {
 	        ipu_isys_queue_buf_flush(ip);
-		dev_err(dev, "stream close failed for entity %s with error %d\n",
-			av->vdev.entity.name, ip->error);
+		dev_err(dev, "stream close error: %d\n", ip->error);
 		rval = -EIO;
 	} else {
-		dev_dbg(dev, "close stream: complete for entity %s\n",
-			av->vdev.entity.name);
+		dev_info(dev, "close stream: complete\n");
 		rval = 0;
 	}
 
@@ -2834,8 +2842,7 @@ int stop_streaming_firmware(struct ipu_isys_video *av)
 			av->vdev.entity.name, ip->error);
 		rval = -EIO;
 	} else {
-		dev_dbg(dev, "stop stream complete for entity %s\n",
-			av->vdev.entity.name);
+		dev_info(dev, "stop stream: complete\n");
 		rval = 0;
 	}
 	return rval;
@@ -2868,12 +2875,11 @@ int close_streaming_firmware(struct ipu_isys_video *av)
 			av->vdev.entity.name, ip->error);
 		rval = -EIO;
 	} else {
-		dev_dbg(dev, "close stream complete for entity %s\n",
-			av->vdev.entity.name);
+		dev_info(dev, "close stream: complete\n");
 		rval = 0;
 	}
 	ip->last_sequence = atomic_read(&ip->sequence);
-	dev_dbg(dev, "IPU_ISYS_RESET: ip->last_sequence = %d\n",
+	dev_info(dev, "IPU_ISYS_RESET: ip->last_sequence = %d\n",
 		ip->last_sequence);
 
 	put_stream_opened(av);
@@ -3372,6 +3378,7 @@ int ipu_isys_video_init(struct ipu_isys_video *av,
 	init_completion(&av->ip.stream_close_completion);
 	init_completion(&av->ip.stream_start_completion);
 	init_completion(&av->ip.stream_stop_completion);
+	init_completion(&av->ip.stream_initialcapture_completion);
 	INIT_LIST_HEAD(&av->ip.queues);
 	spin_lock_init(&av->ip.listlock);
 	INIT_LIST_HEAD(&av->ip.framebuflist);

@@ -91,6 +91,7 @@ struct ipu_isys_pipeline {
 	struct completion stream_close_completion;
 	struct completion stream_start_completion;
 	struct completion stream_stop_completion;
+	struct completion stream_initialcapture_completion;
 	struct ipu_isys *isys;
 
 	spinlock_t listlock;	/* Protect framebuflist */
