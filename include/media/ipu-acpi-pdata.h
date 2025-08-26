@@ -7,6 +7,8 @@
 #include <media/i2c/ar0234.h>
 #include <media/i2c/lt6911uxc.h>
 #include <media/i2c/lt6911uxe.h>
+#include <media/i2c/ti960.h>
+#include <media/i2c/imx390.h>
 
 #define CL_EMPTY 0
 #define CL_DISCRETE 1

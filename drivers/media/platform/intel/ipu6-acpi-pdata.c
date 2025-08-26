@@ -467,6 +467,27 @@ static void update_pdata(struct device *dev,
 	}
 }
 
+static void set_ti960_gpio(struct control_logic_data *ctl_data, struct serdes_platform_data **pdata)
+{
+	int i;
+
+	(*pdata)->reset_gpio = 0;
+	(*pdata)->FPD_gpio = -1;
+
+	if (ctl_data->completed && ctl_data->gpio_num > 0) {
+		for (i = 0; i < ctl_data->gpio_num; i++) {
+			if (ctl_data->gpio[i].func != GPIO_RESET)
+				dev_err(ctl_data->dev,
+					"IPU6 ACPI: Invalid GPIO func: %d\n",
+					ctl_data->gpio[i].func);
+
+			/* check for RESET selection in BIOS */
+			if (ctl_data->gpio[i].valid && ctl_data->gpio[i].func == GPIO_RESET)
+				(*pdata)->FPD_gpio = ctl_data->gpio[i].pin;
+		}
+	}
+}
+
 static void set_lt_gpio(struct control_logic_data *ctl_data, struct sensor_platform_data **pdata,
 			bool is_dummy)
 {
@@ -571,6 +592,16 @@ static void set_serdes_sd_pdata(struct serdes_module_pdata **module_pdata,
 	/* general */
 	(*module_pdata)->lanes = lanes;
 	strscpy((*module_pdata)->module_name, sensor_name, I2C_NAME_SIZE);
+
+	/* TI960 and IMX390 specific */
+	if (!strcmp(sensor_name, IMX390_NAME) && !strcmp(hid_name, "INTC10C1")) {
+		(*module_pdata)->gpio_powerup_seq[0] = 0;
+		(*module_pdata)->gpio_powerup_seq[1] = 0x9;
+		(*module_pdata)->gpio_powerup_seq[2] = -1;
+		(*module_pdata)->gpio_powerup_seq[3] = -1;
+		(*module_pdata)->module_flags = TI960_FL_POWERUP | TI960_FL_INIT_SER_CLK;
+		(*module_pdata)->fsin = 3;
+	}
 }
 
 #define PORT_NR 8
@@ -683,6 +714,10 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		} else
 			pr_err("IPU6 ACPI: Invalid MIPI Port : %d", port);
 
+		/* TI960 and IMX390 specific */
+		if (!strcmp(sensor_name, IMX390_NAME) && !strcmp(hid_name, "INTC10C1"))
+			set_ti960_gpio(ctl_data, &pdata);
+
 		pdata->link_freq_mbps = link_freq;
 		pdata->deser_nlanes = deser_lanes;
 		pdata->ser_nlanes = lanes;
@@ -715,6 +750,9 @@ static void set_serdes_info(struct device *dev, const char *sensor_name,
 	/* sensor mapped addr */
 	serdes_info.sensor_map_addr = cam_data->i2c[i++].addr;
 
+	if (!strcmp(serdes_name, TI960_NAME))
+		serdes_info.gpio_powerup_seq = TI960_MAX_GPIO_POWERUP_SEQ;
+	else
 		serdes_info.gpio_powerup_seq = 0;
 
 	serdes_info.phy_i2c_addr = sensor_physical_addr;
