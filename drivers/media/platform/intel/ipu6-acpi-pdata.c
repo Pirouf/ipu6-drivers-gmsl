@@ -467,6 +467,45 @@ static void update_pdata(struct device *dev,
 	}
 }
 
+static void set_lt_gpio(struct control_logic_data *ctl_data, struct sensor_platform_data **pdata,
+			bool is_dummy)
+{
+	int i;
+
+	(*pdata)->irq_pin = -1;
+	(*pdata)->reset_pin = -1;
+	(*pdata)->detect_pin = -1;
+
+	if (ctl_data->completed && ctl_data->gpio_num > 0 && !is_dummy) {
+		for (i = 0; i < ctl_data->gpio_num; i++) {
+			/* check for unsupported GPIO function */
+			if (ctl_data->gpio[i].func != GPIO_RESET &&
+			    ctl_data->gpio[i].func != GPIO_READY_STAT &&
+			    ctl_data->gpio[i].func != GPIO_HDMI_DETECT)
+				dev_err(ctl_data->dev,
+					"IPU6 ACPI: Invalid GPIO func: %d\n",
+					ctl_data->gpio[i].func);
+
+			/* check for RESET selection in BIOS */
+			if (ctl_data->gpio[i].valid && ctl_data->gpio[i].func == GPIO_RESET)
+				(*pdata)->reset_pin = ctl_data->gpio[i].pin;
+
+			/* check for READY_STAT selection in BIOS */
+			if (ctl_data->gpio[i].valid && ctl_data->gpio[i].func == GPIO_READY_STAT) {
+				(*pdata)->irq_pin = ctl_data->gpio[i].pin;
+				(*pdata)->irq_pin_flags = IRQF_TRIGGER_RISING |
+							IRQF_TRIGGER_FALLING |
+							IRQF_ONESHOT;
+				strscpy((*pdata)->irq_pin_name, "READY_STAT", sizeof("READY_STAT"));
+			}
+
+			/* check for HDMI_DETECT selection in BIOS */
+			if (ctl_data->gpio[i].valid && ctl_data->gpio[i].func == GPIO_HDMI_DETECT)
+				(*pdata)->detect_pin = ctl_data->gpio[i].pin;
+		}
+	}
+}
+
 static void set_common_gpio(struct control_logic_data *ctl_data,
 		     struct sensor_platform_data **pdata)
 {
@@ -621,6 +660,9 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		pdata->i2c_slave_address = addr;
 
 		/* gpio */
+		if (!strcmp(sensor_name, LT6911UXC_NAME) || !strcmp(sensor_name, LT6911UXE_NAME))
+			set_lt_gpio(ctl_data, &pdata, is_dummy);
+		else
 			set_common_gpio(ctl_data, &pdata);
 
 		(*sensor_sd)->i2c.board_info.platform_data = pdata;
@@ -678,6 +720,44 @@ static void set_serdes_info(struct device *dev, const char *sensor_name,
 	serdes_info.phy_i2c_addr = sensor_physical_addr;
 }
 
+static int populate_dummy(struct device *dev,
+			char sensor_name[I2C_NAME_SIZE],
+			const char *hid_name,
+			struct sensor_bios_data *cam_data,
+			struct control_logic_data *ctl_data,
+			enum connection_type connect,
+			int link_freq)
+{
+	struct ipu_isys_subdev_info *dummy;
+	unsigned short addr_dummy = 0x11;
+	int ret;
+
+	pr_debug("IPU6 ACPI: %s", __func__);
+
+	dummy = kzalloc(sizeof(*dummy), GFP_KERNEL);
+	if (!dummy)
+		return -ENOMEM;
+
+	ret = set_csi2(&dummy, cam_data->lanes, cam_data->pprval);
+	if (ret) {
+		kfree(dummy);
+		return ret;
+	}
+
+	set_i2c(&dummy, dev, sensor_name, addr_dummy, cam_data->i2c[0].bdf);
+
+	ret = set_pdata(&dummy, dev, sensor_name, hid_name, ctl_data, cam_data->pprval,
+		cam_data->lanes, addr_dummy, 0, 0, true, connect, link_freq);
+	if (ret) {
+		kfree(dummy);
+		return ret;
+	}
+
+	update_pdata(dev, dummy, connect);
+
+	return 0;
+}
+
 static int populate_sensor_pdata(struct device *dev,
 			struct ipu_isys_subdev_info **sensor_sd,
 			struct sensor_bios_data *cam_data,
@@ -708,7 +788,17 @@ static int populate_sensor_pdata(struct device *dev,
 			return -1;
 		}
 
-		if (ctl_data->type != CL_DISCRETE) {
+		/* LT use LT Control Logic type */
+		if (!strcmp(sensor_name, LT6911UXC_NAME) ||
+		    !strcmp(sensor_name, LT6911UXE_NAME)) {
+			if (ctl_data->type != CL_LT) {
+				dev_err(dev, "IPU6 ACPI: Control Logic Type\n");
+				dev_err(dev, "for %s: %d is Incorrect\n",
+					sensor_name, ctl_data->type);
+				return -EINVAL;
+			}
+		/* Others use DISCRETE Control Logic */
+		} else if (ctl_data->type != CL_DISCRETE) {
 			dev_err(dev, "IPU6 ACPI: Control Logic Type\n");
 			dev_err(dev, "for %s: %d is Incorrect\n",
 				sensor_name, ctl_data->type);
@@ -752,6 +842,13 @@ static int populate_sensor_pdata(struct device *dev,
 	update_pdata(dev, *sensor_sd, connect);
 
 	/* Lontium specific */
+	if (!strcmp(sensor_name, LT6911UXC_NAME) || !strcmp(sensor_name, LT6911UXE_NAME)) {
+		if (cam_data->pprval != cam_data->link) {
+			ret = populate_dummy(dev, sensor_name, hid_name, cam_data, ctl_data, connect, link_freq);
+			if (ret)
+				return ret;
+		}
+	}
 
 	return 0;
 }
