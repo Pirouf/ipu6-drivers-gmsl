@@ -3,9 +3,8 @@
 
 #include <linux/interrupt.h>
 #include <media/ipu-acpi.h>
-#if IS_ENABLED(CONFIG_VIDEO_ISX031)
 #include <media/i2c/isx031.h>
-#endif
+#include <media/i2c/ar0234.h>
 
 #define CL_EMPTY 0
 #define CL_DISCRETE 1

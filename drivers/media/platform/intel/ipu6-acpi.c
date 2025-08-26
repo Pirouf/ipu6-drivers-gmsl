@@ -45,6 +45,8 @@
 #include <media/ipu-acpi-pdata.h>
 #include <media/ipu-acpi.h>
 
+
+#include <media/i2c/ar0234.h>
 #if IS_ENABLED(CONFIG_VIDEO_ISX031)
 #include <media/i2c/isx031.h>
 #endif
@@ -69,6 +71,8 @@ static const struct ipu_acpi_devices supported_devices[] = {
  *	{ "ACPI ID", sensor_name, get_sensor_pdata, NULL, 0, TYPE, serdes_name,
  *		sensor_physical_addr, link_freq(mbps) },	// Custom HID
  */
+	{ "INTC10C0", AR0234_NAME, get_sensor_pdata, NULL, 0, TYPE_DIRECT, NULL,
+		AR0234_I2C_ADDRESS_8BIT, 1200 },	// AR0234 HID
 #if IS_ENABLED(CONFIG_VIDEO_MAX9X)
 #if IS_ENABLED(CONFIG_VIDEO_ISX031)
 	{ "INTC031M", ISX031_NAME, get_sensor_pdata, NULL, 0, TYPE_SERDES, "max9296",
@@ -95,6 +99,7 @@ static const struct acpi_device_id ipu_acpi_match[] = {
 /*
  *	{ "AR0234A", 0 },	// Custom HID
  */
+	{ "INTC10C0", 0 },	// AR0234 HID
 #if IS_ENABLED(CONFIG_VIDEO_ISX031)
 	{ "INTC1031", 0 },	// ISX031 HID
 	{ "INTC031M", 0 },	// D3CMC68N-115-084 ISX031 HID
