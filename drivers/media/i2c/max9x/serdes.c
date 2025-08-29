@@ -1089,7 +1089,11 @@ err_disable:
 	for (link_id = 0; link_id < common->num_serial_links; link_id++) {
 		max9x_setup_translations(common);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+		err = i2c_mux_add_adapter(common->muxc, 0, link_id, 0);
+#else
 		err = i2c_mux_add_adapter(common->muxc, 0, link_id);
+#endif
 		if (err) {
 			dev_err(dev, "failed to add adapter for link %d",
 				link_id);
@@ -1151,7 +1155,11 @@ static int max9x_subdev_s_stream(struct max9x_common *common, unsigned int seria
 
 		local_pad = &v4l->pads[n];
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+		remote_pad = media_entity_remote_pad(local_pad);
+#else
 		remote_pad = media_pad_remote_pad_first(local_pad);
+#endif
 		if (IS_ERR_OR_NULL(remote_pad)) {
 			dev_err(common->dev, "Failed to find remote pad for link %d", serial_link_id);
 			return IS_ERR(remote_pad) ? PTR_ERR(remote_pad) : -ENODEV;
@@ -1227,7 +1235,11 @@ static int max9x_s_stream(struct v4l2_subdev *sd, int enable)
 
 		local_pad = &v4l->pads[n];
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+		remote_pad = media_entity_remote_pad(local_pad);
+#else
 		remote_pad = media_pad_remote_pad_first(local_pad);
+#endif
 		if (IS_ERR_OR_NULL(remote_pad)) {
 			dev_err(common->dev, "Failed to find remote pad for CSI link %d", 0);
 			return IS_ERR(remote_pad) ? PTR_ERR(remote_pad) : -ENODEV;
@@ -1311,7 +1323,11 @@ static int max9x_disable_streams(struct v4l2_subdev *subdev,
 }
 
 static struct v4l2_mbus_framefmt *__max9x_get_ffmt(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+			    struct v4l2_subdev_pad_config *cfg,
+#else
 			    struct v4l2_subdev_state *v4l2_state,
+#endif
 			    struct v4l2_subdev_format *fmt)
 {
 	struct max9x_common *common = max9x_sd_to_common(sd);
@@ -1338,7 +1354,11 @@ static struct v4l2_mbus_framefmt *__max9x_get_ffmt(struct v4l2_subdev *sd,
 
 
 static int max9x_get_fmt(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+			    struct v4l2_subdev_pad_config *cfg,
+#else
 			    struct v4l2_subdev_state *v4l2_state,
+#endif
 			    struct v4l2_subdev_format *fmt)
 {
 	struct max9x_common *common = max9x_sd_to_common(sd);
@@ -1347,7 +1367,12 @@ static int max9x_get_fmt(struct v4l2_subdev *sd,
 
 	mutex_lock(&v4l->lock);
 
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+	ffmt = __max9x_get_ffmt(sd, cfg, fmt);
+#else
 	ffmt = __max9x_get_ffmt(sd, v4l2_state, fmt);
+#endif
 	if (IS_ERR_OR_NULL(ffmt)) {
 		mutex_unlock(&v4l->lock);
 		return -EINVAL;
@@ -1368,7 +1393,11 @@ static int max9x_get_fmt(struct v4l2_subdev *sd,
 }
 
 static int max9x_set_fmt(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+			    struct v4l2_subdev_pad_config *cfg,
+#else
 			    struct v4l2_subdev_state *v4l2_state,
+#endif
 			    struct v4l2_subdev_format *fmt)
 {
 	struct max9x_common *common = max9x_sd_to_common(sd);
@@ -1377,7 +1406,12 @@ static int max9x_set_fmt(struct v4l2_subdev *sd,
 
 	mutex_lock(&v4l->lock);
 
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+	ffmt = __max9x_get_ffmt(sd, cfg, fmt);
+#else
 	ffmt = __max9x_get_ffmt(sd, v4l2_state, fmt);
+#endif
 	if (IS_ERR_OR_NULL(ffmt)) {
 		mutex_unlock(&v4l->lock);
 		return -EINVAL;
@@ -1417,7 +1451,11 @@ static int max9x_get_frame_desc(struct v4l2_subdev *sd,
 		}
 		local_pad = &v4l->pads[n];
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+		remote_pad = media_entity_remote_pad(local_pad);
+#else
 		remote_pad = media_pad_remote_pad_first(local_pad);
+#endif
 		if (IS_ERR_OR_NULL(remote_pad)) {
 			dev_err(common->dev,
 				"Failed to find remote pad for link %d", pad);
@@ -1447,7 +1485,11 @@ static int max9x_get_frame_desc(struct v4l2_subdev *sd,
 
 		local_pad = &v4l->pads[n];
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+		remote_pad = media_entity_remote_pad(local_pad);
+#else
 		remote_pad = media_pad_remote_pad_first(local_pad);
+#endif
 		if (IS_ERR_OR_NULL(remote_pad)) {
 			dev_err(common->dev,
 				"Failed to find remote pad for CSI link %d", 0);
@@ -1474,7 +1516,11 @@ static int max9x_get_frame_desc(struct v4l2_subdev *sd,
 }
 
 static int max9x_enum_mbus_code(struct v4l2_subdev *sd,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+				struct v4l2_subdev_pad_config *cfg,
+#else
 				struct v4l2_subdev_state *v4l2_state,
+#endif
 				struct v4l2_subdev_mbus_code_enum *code)
 {
 	if (mbus_code_to_csi_dt(code->code) < 0)

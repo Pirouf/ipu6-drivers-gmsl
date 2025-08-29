@@ -41,7 +41,11 @@
 #include <media/v4l2-subdev.h>
 #include <uapi/linux/media-bus-format.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) ||  defined(CONFIG_BACKWARD_INTEL_ISYS)
+#include <media/ipu-isys.h>
+#else
 #include "ipu6-isys.h"
+#endif
 #include <media/ipu-acpi-pdata.h>
 #include "max9x_pdata.h"
 

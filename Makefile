@@ -11,6 +11,8 @@ export CONFIG_INTEL_SKL_INT3472 = m
 export CONFIG_INTEL_IPU6_ACPI = m
 obj-y += drivers/media/pci/intel/
 
+export CONFIG_VIDEO_MAX9X=m
+export CONFIG_VIDEO_ISX031=m
 export CONFIG_VIDEO_IMX390 = m
 export CONFIG_VIDEO_AR0234 = m
 export CONFIG_VIDEO_LT6911UXC = m
