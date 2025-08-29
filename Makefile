@@ -14,8 +14,8 @@ obj-y += drivers/media/pci/intel/
 export CONFIG_VIDEO_IMX390 = m
 export CONFIG_VIDEO_AR0234 = m
 export CONFIG_VIDEO_LT6911UXC = m
-export CONFIG_I2C_IOEXPANDER_SER_MAX9295 = m
-export CONFIG_I2C_IOEXPANDER_DESER_MAX9296 = m
+export CONFIG_VIDEO_D4XX_MAX9295 = m
+export CONFIG_VIDEO_D4XX_MAX9296 = m
 export CONFIG_VIDEO_D4XX = m
 
 obj-y += drivers/media/i2c/
