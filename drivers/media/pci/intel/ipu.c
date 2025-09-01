@@ -1091,8 +1091,11 @@ module_init(ipu_init);
 module_exit(ipu_exit);
 
 #if IS_ENABLED(CONFIG_IPU_BRIDGE) && \
-LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0) && \
+LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
 MODULE_IMPORT_NS(INTEL_IPU_BRIDGE);
+#else
+MODULE_IMPORT_NS("INTEL_IPU_BRIDGE");
 #endif
 MODULE_AUTHOR("Sakari Ailus <sakari.ailus@linux.intel.com>");
 MODULE_AUTHOR("Jouni Högander <jouni.hogander@intel.com>");

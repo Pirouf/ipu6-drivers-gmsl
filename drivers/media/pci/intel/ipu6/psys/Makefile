@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-is_kernel_lt_6_10 = $(shell if [ $$(printf "6.10\n$(KERNELVERSION)" | sort -V | head -n1) != "6.10" ]; then echo 1; fi)
+is_kernel_lt_6_14 = $(shell if [ $$(printf "6.14\n$(KERNELVERSION)" | sort -V | head -n1) != "6.14" ]; then echo 1; fi)
 ifneq ($(EXTERNAL_BUILD), 1)
 srcpath := $(srctree)
 endif
@@ -19,6 +19,10 @@ intel-ipu6-psys-objs			+= ipu-psys.o \
 obj-$(CONFIG_VIDEO_INTEL_IPU6)		+= intel-ipu6-psys.o
 
 ccflags-y += -DCONFIG_BACKWARD_INTEL_PSYS
+ifeq ($(is_kernel_lt_6_14), 1)
 ccflags-y += -I$(srcpath)/$(src)/../ipu6/
 ccflags-y += -I$(srcpath)/$(src)/../
 ccflags-y += -I$(srcpath)/$(src)/../../
+else
+ccflags-y += -I$(M)/include/ -I$(M)/drivers/media/pci/intel/ -I$(M)/drivers/media/pci/intel/ipu6/ -I$(M)/drivers/media/pci
+endif

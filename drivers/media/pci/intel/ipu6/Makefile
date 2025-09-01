@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (c) 2017 - 2024 Intel Corporation.
 
+is_kernel_lt_6_14 = $(shell if [ $$(printf "6.14\n$(KERNELVERSION)" | sort -V | head -n1) != "6.14" ]; then echo 1; fi)
 ifneq ($(EXTERNAL_BUILD), 1)
 srcpath := $(srctree)
 endif
@@ -50,8 +51,12 @@ obj-$(CONFIG_VIDEO_INTEL_IPU6)		+= psys/
 
 ccflags-y += -DCONFIG_BACKWARD_INTEL_PSYS
 ccflags-y += -DCONFIG_BACKWARD_INTEL_ISYS
+ifeq ($(is_kernel_lt_6_14), 1)
 ccflags-y += -I$(srcpath)/$(src)/../../../../../include/
 ccflags-y += -I$(srcpath)/$(src)/psys/
 ccflags-y += -I$(srcpath)/$(src)/../
 ccflags-y += -I$(srcpath)/$(src)/
+else
+ccflags-y += -I$(M)/drivers/media/pci/intel/ -I$(M)/drivers/media/pci/intel/ipu6/ -I$(M)/drivers/media/pci/intel/ipu6/psys -I$(M)/drivers/media/pci
+endif
 ccflags-y += -I$(M)/backport-include/ -I$(M)/include/
