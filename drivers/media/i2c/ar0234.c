@@ -1316,7 +1316,11 @@ static const struct ar0234_mode supported_modes[] = {
 			.num_of_regs = ARRAY_SIZE(mode_1280x960_10bit_2lane),
 			.regs = mode_1280x960_10bit_2lane,
 		},
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+		.link_freq_index = AR0234_LINK_FREQ_360MBPS,
+#else
 		.link_freq_index = -1,
+#endif
 	},
 	{
 		.width = WIN_WIDTH,
@@ -1332,7 +1336,11 @@ static const struct ar0234_mode supported_modes[] = {
 			.num_of_regs = ARRAY_SIZE(mode_1280x960_8bit_4lane),
 			.regs = mode_1280x960_8bit_4lane,
 		},
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+		.link_freq_index = AR0234_LINK_FREQ_360MBPS,
+#else
 		.link_freq_index = AR0234_LINK_FREQ_240MBPS,
+#endif
 	},
 	{
 		.width = 1920,
@@ -1393,10 +1401,29 @@ struct ar0234 {
 	bool streaming;
 
 	struct ar0234_platform_data *platform_data;
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+	struct gpio_desc *reset_gpio;
+#endif
 
 	s64 sub_stream;
 };
 
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+static int ar0234_reset(struct gpio_desc *reset_gpio)
+{
+	if (!IS_ERR_OR_NULL(reset_gpio)) {
+		gpiod_set_value_cansleep(reset_gpio, 0);
+		usleep_range(500, 1000);
+		gpiod_set_value_cansleep(reset_gpio, 1);
+		/*Needs to sleep for quite a while before register writes*/
+		usleep_range(200 * 1000, 200 * 1000 + 500);
+
+		return 0;
+	}
+
+	return -EINVAL;
+}
+#endif
 static int ar0234_read_reg(struct ar0234 *ar0234, u16 reg, u16 len, u32 *val)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&ar0234->sd);
@@ -1584,22 +1611,25 @@ static int ar0234_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	case V4L2_CID_FLASH_STROBE:
-		if (ar0234->platform_data->gpios[0] != -1) {
-			if (ar0234->strobe_source->val ==
-					V4L2_FLASH_STROBE_SOURCE_SOFTWARE)
-				gpio_set_value(ar0234->platform_data->gpios[0], 1);
+		if (ar0234->platform_data) {
+			if (ar0234->platform_data->gpios[0] != -1) {
+				if (ar0234->strobe_source->val ==
+				    V4L2_FLASH_STROBE_SOURCE_SOFTWARE)
+					gpio_set_value(ar0234->platform_data->gpios[0], 1);
+			}
+			dev_info(&client->dev, "turn on led %d\n", ctrl->val);
 		}
-		dev_info(&client->dev, "turn on led %d\n", ctrl->val);
-
 		break;
 
 	case V4L2_CID_FLASH_STROBE_STOP:
-		if (ar0234->platform_data->gpios[0] != -1) {
-			if (ar0234->strobe_source->val ==
-					V4L2_FLASH_STROBE_SOURCE_SOFTWARE)
-				gpio_set_value(ar0234->platform_data->gpios[0], 0);
+		if (ar0234->platform_data) {
+			if (ar0234->platform_data->gpios[0] != -1) {
+				if (ar0234->strobe_source->val ==
+				    V4L2_FLASH_STROBE_SOURCE_SOFTWARE)
+					gpio_set_value(ar0234->platform_data->gpios[0], 0);
+			}
+			dev_info(&client->dev, "turn off led %d\n", ctrl->val);
 		}
-		dev_info(&client->dev, "turn off led %d\n", ctrl->val);
 		break;
 
 	case V4L2_CID_FLASH_TIMEOUT:
@@ -1797,16 +1827,19 @@ static int ar0234_init_controls(struct ar0234 *ar0234)
 	ar0234->timeout = v4l2_ctrl_new_std(ctrl_hdlr, &ar0234_ctrl_ops,
 			V4L2_CID_FLASH_TIMEOUT, -128, 127, 1, 0);
 
-	ar0234_csi_port.def = ar0234->platform_data->port;
-	ar0234->csi_port =
-		v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_csi_port, NULL);
-	ar0234_i2c_bus.def = i2c_adapter_id(client->adapter);
-	ar0234->i2c_bus =
-		v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_i2c_bus, NULL);
-	ar0234_i2c_id.def = client->addr;
-	ar0234->i2c_id = v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_i2c_id, NULL);
-	ar0234_i2c_slave_address.def = ar0234->platform_data->i2c_slave_address;
-	ar0234->i2c_slave_address = v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_i2c_slave_address, NULL);
+	if (ar0234->platform_data) {
+		ar0234_csi_port.def = ar0234->platform_data->port;
+		ar0234->csi_port =
+			v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_csi_port, NULL);
+		ar0234_i2c_bus.def = i2c_adapter_id(client->adapter);
+		ar0234->i2c_bus =
+			v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_i2c_bus, NULL);
+		ar0234_i2c_id.def = client->addr;
+		ar0234->i2c_id = v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_i2c_id, NULL);
+		ar0234_i2c_slave_address.def = ar0234->platform_data->i2c_slave_address;
+		ar0234->i2c_slave_address = v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_i2c_slave_address, NULL);
+	}
+
 	ar0234_fps.def = ar0234->cur_mode->fps;
 	ar0234->fps = v4l2_ctrl_new_custom(ctrl_hdlr, &ar0234_fps, NULL);
 	ar0234_frame_interval.def = 1000 / ar0234->cur_mode->fps;
@@ -1890,11 +1923,14 @@ static void ar0234_stop_streaming(struct ar0234 *ar0234)
 	if (ar0234_write_reg(ar0234, AR0234_REG_MODE_SELECT,
 			     AR0234_REG_VALUE_16BIT, AR0234_MODE_STANDBY))
 		dev_err(&client->dev, "failed to set stream");
-	/*
-	 * turn off flash, clear possible noise.
-	 */
-	if (ar0234->platform_data->gpios[0] != -1)
-		gpio_set_value(ar0234->platform_data->gpios[0], 0);
+
+	if (ar0234->platform_data) {
+		/*
+		 * turn off flash, clear possible noise.
+		 */
+		if (ar0234->platform_data->gpios[0] != -1)
+			gpio_set_value(ar0234->platform_data->gpios[0], 0);
+	}
 }
 
 static int ar0234_set_stream(struct v4l2_subdev *sd, int enable)
@@ -1973,6 +2009,10 @@ static int __maybe_unused ar0234_resume(struct device *dev)
 	int ret;
 
 	mutex_lock(&ar0234->mutex);
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+	if (ar0234->reset_gpio != NULL)
+		ar0234_reset(ar0234->reset_gpio);
+#endif
 	if (ar0234->streaming) {
 		ret = ar0234_start_streaming(ar0234);
 		if (ret) {
@@ -2284,30 +2324,33 @@ static int ar0234_probe(struct i2c_client *client)
 		return -ENOMEM;
 
 	ar0234->platform_data = client->dev.platform_data;
-	if (ar0234->platform_data == NULL) {
-		dev_err(&client->dev, "no platform data provided\n");
-		return -EINVAL;
+	if (ar0234->platform_data == NULL)
+		dev_warn(&client->dev, "no platform data provided\n");
+
+#if IS_ENABLED(CONFIG_VIDEO_MAX9X)
+	/* reset sensor */
+	ar0234->reset_gpio = devm_gpiod_get_optional(&client->dev, "reset",
+						     GPIOD_OUT_HIGH);
+	if (IS_ERR(ar0234->reset_gpio))
+		return -EPROBE_DEFER;
+	else if (ar0234->reset_gpio == NULL)
+		dev_warn(&client->dev, "Reset GPIO not found");
+	else {
+		dev_dbg(&client->dev, "Found reset GPIO");
+		ar0234_reset(ar0234->reset_gpio);
 	}
+#endif
+
+	/* initialize subdevice */
 	v4l2_i2c_subdev_init(&ar0234->sd, client, &ar0234_subdev_ops);
-	ret = ar0234_identify_module(ar0234);
-	if (ret) {
-		dev_err(&client->dev, "failed to find sensor: %d", ret);
-		return ret;
+	if (ar0234->platform_data) {
+		if (ar0234->platform_data->suffix)
+			snprintf(ar0234->sd.name,
+				 sizeof(ar0234->sd.name), "ar0234 %c",
+				 ar0234->platform_data->suffix);
+	} else {
+	  v4l2_i2c_subdev_set_name(&ar0234->sd, client, dev_name(&client->dev), NULL);
 	}
-
-	if (ar0234->platform_data->suffix)
-		snprintf(ar0234->sd.name,
-				sizeof(ar0234->sd.name), "ar0234 %c",
-				ar0234->platform_data->suffix);
-
-	mutex_init(&ar0234->mutex);
-	ar0234->cur_mode = &supported_modes[0];
-	ret = ar0234_init_controls(ar0234);
-	if (ret) {
-		dev_err(&client->dev, "failed to init controls: %d", ret);
-		goto probe_error_v4l2_ctrl_handler_free;
-	}
-
 	ar0234->sd.internal_ops = &ar0234_internal_ops;
 	ar0234->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	ar0234->sd.entity.ops = &ar0234_subdev_entity_ops;
@@ -2316,10 +2359,28 @@ static int ar0234_probe(struct i2c_client *client)
 	ret = media_entity_pads_init(&ar0234->sd.entity, 1, &ar0234->pad);
 	if (ret) {
 		dev_err(&client->dev, "failed to init entity pads: %d", ret);
+		return ret;
+	}
+
+	ret = ar0234_identify_module(ar0234);
+	if (ret) {
+		dev_err(&client->dev, "failed to find sensor: %d", ret);
+		return ret;
+	}
+
+	mutex_init(&ar0234->mutex);
+
+	/* 1280x960 */
+	ar0234->cur_mode = &supported_modes[0];
+
+	ret = ar0234_init_controls(ar0234);
+	if (ret) {
+		dev_err(&client->dev, "failed to init controls: %d", ret);
 		goto probe_error_v4l2_ctrl_handler_free;
 	}
 
-	if ((ar0234->platform_data->gpios[0] != -1) && (ar0234->platform_data->irq_pin != -1)) {
+	if (ar0234->platform_data) {
+	    if ((ar0234->platform_data->gpios[0] != -1) && (ar0234->platform_data->irq_pin != -1)) {
 		ret = devm_gpio_request(&client->dev,
 				ar0234->platform_data->irq_pin,
 				ar0234->platform_data->irq_pin_name);
@@ -2346,8 +2407,8 @@ static int ar0234_probe(struct i2c_client *client)
 			dev_err(&client->dev, "LED GPIO pin request failed!\n");
 			goto probe_error_v4l2_ctrl_handler_free;
 		}
+	    }
 	}
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
 	ret = v4l2_async_register_subdev_sensor_common(&ar0234->sd);
 #else
@@ -2375,6 +2436,7 @@ probe_error_media_entity_cleanup:
 
 probe_error_v4l2_ctrl_handler_free:
 	v4l2_ctrl_handler_free(ar0234->sd.ctrl_handler);
+	pm_runtime_disable(&client->dev);
 	mutex_destroy(&ar0234->mutex);
 	dev_err(&client->dev, "%s Probe Failed", ar0234->sd.name);
 
