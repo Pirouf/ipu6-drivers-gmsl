@@ -1717,6 +1717,19 @@ static int max9x_registered(struct v4l2_subdev *sd)
 					sensor_gpios.dev_id = dev_id;
 					sensor_gpios.table[0].key = common->gpio_chip.label;
 
+					// HACK: Just make ar0234 work
+					if (!strcmp(subdev_pdata->board_info.type, "ar0234")) {
+						// set GPIOB push-pull and select pull-down
+						dev_dbg(dev, "serializer GPIO0 pull-down %s sensor RESET_BAR signal toggled (%s)...", subdev_pdata->board_info.type, dev_id);
+						regmap_write(common->map, 0x2BF, 0xa0 );
+						regmap_write(common->map, 0x2BE, 0);
+						usleep_range(10000, 10000);
+						regmap_write(common->map, 0x2BF, 0xa0 );
+						regmap_write(common->map, 0x2BE, 1 << 4);
+						//Needs to sleep for quite a while before register writes
+						usleep_range(200 * 1000, 200 * 1000 + 500);
+					}
+
 					gpiod_add_lookup_table(&sensor_gpios);
 
 					struct v4l2_subdev *subdev =
