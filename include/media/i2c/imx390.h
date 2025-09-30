@@ -8,7 +8,9 @@
 
 #define IMX390_NAME "imx390"
 
-#define IMX390_D3CM_I2C_ADDRESS (0x21 << 1)
+#define IMX390_I2C_ADDRESS 0x21
+#define IMX390_D3CM_I2C_ADDRESS IMX390_I2C_ADDRESS
+#define IMX390_I2C_ADDRESS_8BIT (IMX390_I2C_ADDRESS << 1)
 
 struct imx390_platform_data {
 	unsigned int port;

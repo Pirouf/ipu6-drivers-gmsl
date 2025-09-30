@@ -9,6 +9,7 @@
 #define AR0234_NAME		"ar0234"
 
 #define AR0234_I2C_ADDRESS 0x1a
+#define AR0234_D3CM_I2C_ADDRESS 0x10
 #define AR0234_I2C_ADDRESS_8BIT (AR0234_I2C_ADDRESS << 1)
 
 struct ar0234_platform_data {
