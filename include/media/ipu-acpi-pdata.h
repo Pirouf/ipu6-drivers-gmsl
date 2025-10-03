@@ -21,8 +21,14 @@
 #define SERDES_MAX_GPIO_POWERUP_SEQ 4
 #define LOOP_SIZE 10
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+int get_sensor_pdata(struct i2c_client *client,
+			 struct ipu_camera_module_data *data,
+			 struct ipu_i2c_helper *helper,
+#else
 int get_sensor_pdata(struct device *dev,
 			struct ipu_camera_module_data *data,
+#endif
 			void *priv, size_t size,
 			enum connection_type connect,
 			const char *sensor_name,

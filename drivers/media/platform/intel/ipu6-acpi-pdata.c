@@ -997,8 +997,14 @@ static int populate_sensor_pdata(struct device *dev,
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+int get_sensor_pdata(struct i2c_client *client,
+			 struct ipu_camera_module_data *data,
+			 struct ipu_i2c_helper *helper,
+#else
 int get_sensor_pdata(struct device *dev,
 			struct ipu_camera_module_data *data,
+#endif
 			void *priv, size_t size,
 			enum connection_type connect, const char *sensor_name,
 			const char *serdes_name, const char *hid_name,
@@ -1007,6 +1013,9 @@ int get_sensor_pdata(struct device *dev,
 	struct sensor_bios_data *cam_data;
 	struct control_logic_data *ctl_data;
 	struct ipu_isys_subdev_info *sensor_sd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+	struct device *dev = &client->dev;
+#endif
 	int rval;
 
 	cam_data = kzalloc(sizeof(*cam_data), GFP_KERNEL);

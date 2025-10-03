@@ -148,6 +148,86 @@ static const struct acpi_device_id ipu_acpi_match[] = {
 	{},
 };
 
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+static int ipu_acpi_get_pdata(struct i2c_client *client,
+			      const struct acpi_device_id *acpi_id,
+			      struct ipu_i2c_helper *helper)
+{
+	struct ipu_camera_module_data *camdata;
+	int index = get_table_index(acpi_id->id);
+	int rval;
+
+	if (index < 0) {
+		pr_err("Device is not in supported devices list\n");
+		return -ENODEV;
+	}
+
+	camdata = add_device_to_list(&devices);
+	if (!camdata)
+		return -ENOMEM;
+
+	strscpy(client->name, supported_devices[index].real_driver,
+		sizeof(client->name));
+
+	pr_info("IPU6 ACPI: Getting BIOS data for %s (%s)", client->name, dev_name(&client->dev));
+
+	rval = supported_devices[index].get_platform_data(
+		client, camdata, helper,
+		supported_devices[index].priv_data,
+		supported_devices[index].priv_size,
+		supported_devices[index].connect,
+		supported_devices[index].real_driver,
+		supported_devices[index].serdes_name,
+		supported_devices[index].hid_name,
+		supported_devices[index].sensor_physical_addr,
+		supported_devices[index].link_freq);
+
+	if (rval)
+		return -EPROBE_DEFER;
+
+	return 0;
+}
+
+static int ipu_i2c_test(struct device *dev, void *priv)
+{
+	struct i2c_client *client = i2c_verify_client(dev);
+	const struct acpi_device_id *acpi_id;
+
+	/*
+	 * Check that we are handling only I2C devices which really has
+	 * ACPI data and are one of the devices which we want to handle
+	 */
+
+	if (!ACPI_COMPANION(dev) || !client)
+		return 0;
+
+	acpi_id = acpi_match_device(ipu_acpi_match, dev);
+	if (!acpi_id) {
+		dev_err(dev, "IPU6 ACPI: ACPI device %s NOT supported\n",
+			dev_name(dev));
+		return 0;
+	}
+
+	/*
+	 * Skip if platform data has already been added.
+	 * Probably ACPI data overruled by kernel platform data
+	 */
+	if (client->dev.platform_data)
+		return 0;
+
+	/* Looks that we got what we are looking for */
+	if (ipu_acpi_get_pdata(client, acpi_id, priv))
+		pr_err("IPU6 ACPI: Failed to process ACPI data");
+
+	/* Don't return error since we want to process remaining devices */
+
+	/* Unregister matching client */
+	i2c_unregister_device(client);
+
+	return 0;
+}
+#else
 static int ipu_acpi_get_pdata(struct device *dev, int index)
 {
 	struct ipu_camera_module_data *camdata;
@@ -235,6 +315,7 @@ static int ipu_acpi_test(struct device *dev, void *priv)
 
 	return 0; /* Continue iteration */
 }
+#endif
 
 /* Scan all i2c devices and pick ones which we can handle */
 
@@ -256,6 +337,12 @@ int ipu_get_acpi_devices(void *driver_data,
 #endif
 				 bool reprobe))
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+	struct ipu_i2c_helper helper = {
+		.fn = fn,
+		.driver_data = driver_data,
+	};
+#endif
 	int rval;
 
 	if (!built_in_pdata)
@@ -268,7 +355,11 @@ int ipu_get_acpi_devices(void *driver_data,
 	if ((!fn) || (!driver_data))
 		return -ENODEV;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+	rval = i2c_for_each_dev(&helper, ipu_i2c_test);
+#else
 	rval = acpi_bus_for_each_dev(ipu_acpi_test, NULL);
+#endif
 	if (rval < 0)
 		return rval;
 

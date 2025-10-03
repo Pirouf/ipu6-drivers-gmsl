@@ -205,8 +205,14 @@ struct ipu_camera_module_data {
 struct ipu_acpi_devices {
 	const char *hid_name;
 	const char *real_driver;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+	int (*get_platform_data)(struct i2c_client *client,
+				 struct ipu_camera_module_data *data,
+				 struct ipu_i2c_helper *helper,
+#else
 	int (*get_platform_data)(struct device *dev,
 				 struct ipu_camera_module_data *data,
+#endif
 				 void *priv,
 				 size_t size,
 				 enum connection_type type,

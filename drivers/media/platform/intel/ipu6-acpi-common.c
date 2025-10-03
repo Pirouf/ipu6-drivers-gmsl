@@ -21,6 +21,9 @@
 #endif
 #include <media/ipu-acpi-pdata.h>
 #include <media/ipu-acpi.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+#include <linux/pci.h>
+#endif
 
 static int get_integer_dsdt_data(struct device *dev, const u8 *dsdt,
 				 int func, u64 *out)
@@ -212,8 +215,12 @@ static int ipu_get_i2c_bdf_crs(struct device *dev, struct ipu_i2c_info *info)
 		return -ENODEV;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+	if (acpi_bus_get_device(handle, &controller_adev)) {
+#else
 	controller_adev = acpi_fetch_acpi_dev(handle);
 	if (!controller_adev) {
+#endif
 		dev_err(dev, "No ACPI device for controller: %s\n", controller_path);
 		kfree(controller_path);
 		return -ENODEV;
