@@ -1343,7 +1343,13 @@ static struct v4l2_mbus_framefmt *__max9x_get_ffmt(struct v4l2_subdev *sd,
 	}
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+		return v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
+		return v4l2_subdev_get_try_format(sd, v4l2_state, fmt->pad);
+#else
 		return v4l2_subdev_state_get_format(v4l2_state, fmt->pad);
+#endif
 
 	//TODO: refactor __max9x_get_ffmt, v4l.ffmts is not used
 	if (fmt->pad >= 0 && fmt->pad < common->v4l.num_pads)
@@ -1569,6 +1575,7 @@ static int max9x_set_routing(struct v4l2_subdev *sd,
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
 static int max9x_init_state(struct v4l2_subdev *sd,
 			    struct v4l2_subdev_state *state)
 {
@@ -1606,6 +1613,7 @@ static int max9x_init_state(struct v4l2_subdev *sd,
 	else
 		return _max9x_set_routing(sd, state, &ser_routing);
 }
+#endif
 
 static const struct v4l2_subdev_pad_ops max9x_sd_pad_ops = {
 	.get_fmt = max9x_get_fmt,
@@ -1760,7 +1768,9 @@ static int max9x_registered(struct v4l2_subdev *sd)
 
 static struct v4l2_subdev_internal_ops max9x_sd_internal_ops = {
 	.registered = max9x_registered,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
 	.init_state = max9x_init_state,
+#endif
 };
 
 static int max9x_s_ctrl(struct v4l2_ctrl *ctrl)

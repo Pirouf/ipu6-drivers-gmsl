@@ -483,6 +483,7 @@ static int isx031_set_stream(struct v4l2_subdev *sd, int enable)
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
 static int isx031_enable_streams(struct v4l2_subdev *subdev,
 	struct v4l2_subdev_state *state,
 	u32 pad, u64 streams_mask)
@@ -496,6 +497,7 @@ static int isx031_disable_streams(struct v4l2_subdev *subdev,
 {
 	return isx031_set_stream(subdev, false);
 }
+#endif
 
 static int __maybe_unused isx031_suspend(struct device *dev)
 {
@@ -719,8 +721,10 @@ static const struct v4l2_subdev_pad_ops isx031_pad_ops = {
 	.set_fmt = isx031_set_format,
 	.get_fmt = isx031_get_format,
 	.get_frame_desc = isx031_get_frame_desc,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
 	.enable_streams = isx031_enable_streams,
 	.disable_streams = isx031_disable_streams,
+#endif
 };
 
 static const struct v4l2_subdev_ops isx031_subdev_ops = {
