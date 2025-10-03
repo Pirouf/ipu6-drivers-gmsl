@@ -41,4 +41,5 @@ obj-$(CONFIG_VIDEO_MAX9X) += max9x/
 endif
 obj-$(CONFIG_VIDEO_D4XX_MAX9295) += d4xx-max9295.o
 obj-$(CONFIG_VIDEO_D4XX_MAX9296) += d4xx-max9296.o
+obj-$(CONFIG_VIDEO_D4XX_MAX96724) += d4xx-max96724.o
 obj-$(CONFIG_VIDEO_D4XX) += d4xx.o

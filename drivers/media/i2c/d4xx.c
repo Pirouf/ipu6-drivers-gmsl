@@ -42,7 +42,11 @@
 
 #ifdef CONFIG_VIDEO_D4XX_SERDES
 #include <media/i2c/d4xx-max9295.h>
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+#include <media/i2c/d4xx-max96724.h>
+#else
 #include <media/i2c/d4xx-max9296.h>
+#endif
 #else
 #include <media/gmsl-link.h>
 #define GMSL_CSI_DT_YUV422_8 0x1E
@@ -151,6 +155,7 @@
 #define MAX9295_I2C_5	0x0045
 
 #define MAX9296_CTRL0	0x0010
+#define MAX96724_CTRL0	MAX9296_CTRL0
 #define RESET_LINK	(0x1 << 6)
 #define RESET_ONESHOT	(0x1 << 5)
 #define AUTO_LINK	(0x1 << 4)
@@ -159,6 +164,7 @@
 #define LINK_B		(0x2)
 #define SPLITTER	(0x3)
 #define MAX9296_NUM	(4)
+#define MAX96724_NUM	MAX9296_NUM
 
 #define MAX9295_I2C_ADDR_DEF	0x40
 #define D457_I2C_ADDR	0x10
@@ -202,7 +208,11 @@ enum ds5_mux_pad {
 #define ds5_raw_write_with_check(state, addr, buf, size) {\
 	if (ds5_raw_write(state, addr, buf, size)) \
 		return -EINVAL; }
-#ifdef CONFIG_VIDEO_INTEL_IPU6
+#if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU6)
+#define max96724_write_8_with_check(state, addr, buf) {\
+	if (max96724_write_8(state, addr, buf)) \
+		return -EINVAL; \
+	}
 #define max9296_write_8_with_check(state, addr, buf) {\
 	if (max9296_write_8(state, addr, buf)) \
 		return -EINVAL; \
@@ -1555,8 +1565,13 @@ static int ds5_setup_pipeline(struct ds5 *state, u8 data_type1, u8 data_type2,
 			 pipe_id, data_type1, data_type2, vc_id);
 	ret |= max9295_set_pipe(state->ser_dev, pipe_id,
 				data_type1, data_type2, vc_id);
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	ret |= max96724_set_pipe(state->dser_dev, pipe_id,
+				data_type1, data_type2, vc_id);
+#else
 	ret |= max9296_set_pipe(state->dser_dev, pipe_id,
 				data_type1, data_type2, vc_id);
+#endif
 	if (ret)
 		dev_warn(&state->client->dev,
 			 "failed to set pipe %d, data_type1: 0x%x, \
@@ -1631,7 +1646,11 @@ static int ds5_configure(struct ds5 *state)
 				 vc_id);
 	// reset data path when switching to Y12I
 	if (state->is_y8 && data_type1 == GMSL_CSI_DT_RGB_888)
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		max96724_reset_oneshot(state->dser_dev);
+#else
 		max9296_reset_oneshot(state->dser_dev);
+#endif
 	if (ret < 0)
 		return ret;
 #endif
@@ -3245,13 +3264,66 @@ static int ds5_board_setup(struct ds5 *state)
 	int err = 0;
 	int i;
 	char suffix = pdata->suffix;
+	char sd_suffix = pdata->subdev_info[0].suffix[0];
 	char serdes_suffix[5]; /* suffix string for subdevs */
+
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	sd_suffix -= 0x20; // capitalize the serdes suffixes if 4x GMSL deserializer
+
+	/* Derive Deser CSI link mapping  */
+	switch (sd_suffix) {
+	case 'G':
+	case 'K':
+		state->g_ctx.serdes_csi_link = GMSL_SERDES_CSI_LINK_B;
+		break;
+	case 'H':
+	case 'L':
+		state->g_ctx.serdes_csi_link = GMSL_SERDES_CSI_LINK_C;
+		break;
+	case 'I':
+	case 'M':
+		state->g_ctx.serdes_csi_link = GMSL_SERDES_CSI_LINK_D;
+		break;
+	default:
+		state->g_ctx.serdes_csi_link = GMSL_SERDES_CSI_LINK_A;
+		break;
+	};
+#endif
 
 	static struct max9295_pdata max9295_pdata = {
 		.is_prim_ser = 1, // todo: configurable
 		.def_addr = 0x40, // todo: configurable
 		.d4xx_hacks = 1,
 	};
+#if defined(CONFIG_VIDEO_D4XX_MAX96724)
+	static struct max96724_pdata max96724_pdata = {
+		.max_src = 4,
+		.csi_mode =  GMSL_CSI_2X4_MODE, //GMSL_CSI_4X2_MODE,
+		.csi_phy = GMSL_CSI_DPHY,
+		.d4xx_hacks = 1,
+	};
+
+	max96724_pdata.src_link = state->g_ctx.serdes_csi_link;
+
+	static struct i2c_board_info i2c_info_des = {
+		I2C_BOARD_INFO("d4xx-max96724", 0x27),
+		.platform_data = &max96724_pdata,
+	};
+#elif defined(CONFIG_VIDEO_D4XX_MAX96712)
+	static struct max96724_pdata max96724_pdata = {
+		.max_src = 4,
+		.csi_mode = GMSL_CSI_4X2_MODE, //GMSL_CSI_2X4_MODE,
+		.csi_phy = GMSL_CSI_DPHY,
+		.d4xx_hacks = 1,
+	};
+
+	max96724_pdata.src_link = state->g_ctx.serdes_csi_link;
+
+	static struct i2c_board_info i2c_info_des = {
+		I2C_BOARD_INFO("d4xx-max96724", 0x6b),
+		.platform_data = &max96724_pdata,
+	};
+#else
 	static struct max9296_pdata max9296_pdata = {
 		.max_src = 2,
 		.csi_mode = GMSL_CSI_2X4_MODE,
@@ -3261,6 +3333,7 @@ static int ds5_board_setup(struct ds5 *state)
 		I2C_BOARD_INFO("d4xx-max9296", 0x48),
 		.platform_data = &max9296_pdata,
 	};
+#endif
 	static struct i2c_board_info i2c_info_ser = {
 		I2C_BOARD_INFO("d4xx-max9295", 0x42),
 		.platform_data = &max9295_pdata,
@@ -3293,25 +3366,25 @@ static int ds5_board_setup(struct ds5 *state)
 				state->aggregated = 1;
 				break;
 			} else if ( pdata->subdev_info[0].aggregated_link ) {
-				dev_info(dev, "PDATA sensor/serializer AGGREGATED on MAX9296 device 0x%x GMSL port %s\n",
+				dev_info(dev, "PDATA sensor/serializer AGGREGATED on MAX9296 device 0x%x GMSL port %c\n",
 					 i2c_info_des.addr,
-					 pdata->subdev_info[0].suffix);
+					 sd_suffix);
 				state->aggregated = 1;
 			}
 		}
 	}
-	if ( pdata->subdev_info[0].aggregated_link ) {
-	  snprintf(serdes_suffix, sizeof(serdes_suffix), "%s", pdata->subdev_info[0].suffix);
-	  dev_info(dev, "PDATA GMSL port suffix %s\n",
-		   i2c_info_des.addr,
-		   serdes_suffix);
-	  suffix = (const char) serdes_suffix[0]; /* d4xx suffix only uses subdevs first char */
-	} else if (state->aggregated)
-		suffix += 6;
-	dev_info(dev, "Init SerDes %c on %d@0x%x<->%d@0x%x\n",
-		suffix,
-		bus, pdata->subdev_info[0].board_info.addr, //48
-		bus, pdata->subdev_info[0].ser_alias); //42
+
+	/*
+	 * suffix syntaxe for multiple D457 connected to 1 Deser :
+	 * - IPU6 max9296 when standalone <a|b|c|d|e|f> when aggregated <g|h|i|j|k|l|m>
+	 * - IPU6 max9672x when standalone <a|b|c|d|e|f> when aggregated <G|H|I|J|K|L|M>
+	 */
+	snprintf(serdes_suffix, sizeof(serdes_suffix), "%c", sd_suffix);
+	dev_info(dev, "Init SerDes %c->%s on %d@0x%x<->%d@0x%x\n",
+		 sd_suffix,
+		 serdes_suffix,
+		 bus, pdata->subdev_info[0].board_info.addr, //48
+		 bus, pdata->subdev_info[0].ser_alias); //42
 
 	if (!state->dser_i2c)
 		state->dser_i2c = i2c_new_client_device(adapter, &i2c_info_des);
@@ -3342,8 +3415,8 @@ static int ds5_board_setup(struct ds5 *state)
 	state->g_ctx.sdev_reg = state->client->addr;
 	state->g_ctx.sdev_def = 0x10;// def-addr TODO: configurable
 	// Address reassignment for d4xx-a 0x10->0x12
-	dev_info(dev, "Address reassignment for %s-%c 0x%x->0x%x\n",
-		pdata->subdev_info[0].board_info.type, suffix,
+	dev_info(dev, "Address reassignment for %s-%s 0x%x->0x%x\n",
+		pdata->subdev_info[0].board_info.type, serdes_suffix,
 		state->g_ctx.sdev_def, state->g_ctx.sdev_reg);
 	//0x42, 0x44, 0x62, 0x64
 	state->g_ctx.ser_reg = pdata->subdev_info[0].ser_alias;
@@ -3364,16 +3437,25 @@ static int ds5_board_setup(struct ds5 *state)
 	state->dser_dev = &state->dser_i2c->dev;
 
 	/* populate g_ctx from pdata */
+#if defined(CONFIG_VIDEO_D4XX_MAX96724)
+	state->g_ctx.dst_csi_port = (suffix == 'a') ? GMSL_CSI_PORT_C : GMSL_CSI_PORT_B;
+#elif defined(CONFIG_VIDEO_D4XX_MAX96712)
+	state->g_ctx.dst_csi_port = (max96724_pdata.csi_mode == GMSL_CSI_4X2_MODE) ? GMSL_CSI_PORT_A : GMSL_CSI_PORT_B;
+#else
 	state->g_ctx.dst_csi_port = GMSL_CSI_PORT_A;
-	state->g_ctx.src_csi_port = GMSL_CSI_PORT_B;
+#endif
 	state->g_ctx.csi_mode = GMSL_CSI_1X4_MODE;
-	if (state->aggregated) { // aggregation
+	state->g_ctx.src_csi_port = GMSL_CSI_PORT_B;
+
+#if !defined(CONFIG_VIDEO_D4XX_MAX96724) && !defined(CONFIG_VIDEO_D4XX_MAX96712)
+	state->g_ctx.serdes_csi_link = GMSL_SERDES_CSI_LINK_A;
+	if (state->aggregated) { // dual aggregated-link fallback
 		dev_info(dev,  "configure GMSL port B\n");
 		state->g_ctx.serdes_csi_link = GMSL_SERDES_CSI_LINK_B;
 	} else {
 		dev_info(dev,  "configure GMSL port A\n");
-		state->g_ctx.serdes_csi_link = GMSL_SERDES_CSI_LINK_A;
 	}
+#endif
 	state->g_ctx.st_vc = 0;
 	state->g_ctx.dst_vc = 0;
 
@@ -3425,13 +3507,23 @@ static int ds5_gmsl_serdes_setup(struct ds5 *state)
 
 	mutex_lock(&serdes_lock__);
 
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	max96724_power_off(state->dser_dev);
+	/* For now no separate power on required for serializer device */
+	max96724_power_on(state->dser_dev);
+#else
 	max9296_power_off(state->dser_dev);
 	/* For now no separate power on required for serializer device */
 	max9296_power_on(state->dser_dev);
+#endif
 
 	dev_dbg(dev, "Setup SERDES addressing and control pipeline\n");
 	/* setup serdes addressing and control pipeline */
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	err = max96724_setup_link(state->dser_dev, &state->client->dev);
+#else
 	err = max9296_setup_link(state->dser_dev, &state->client->dev);
+#endif
 	if (err) {
 		dev_err(dev, "gmsl deserializer link config failed\n");
 		goto error;
@@ -3445,7 +3537,11 @@ static int ds5_gmsl_serdes_setup(struct ds5 *state)
 		err= -ENOTSUPP;
 	}
 
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	des_err = max96724_setup_control(state->dser_dev, &state->client->dev);
+#else
 	des_err = max9296_setup_control(state->dser_dev, &state->client->dev);
+#endif
 	if (des_err) {
 		dev_warn(dev, "gmsl deserializer setup failed\n");
 		/* overwrite err only if deser setup also failed */
@@ -3458,10 +3554,17 @@ error:
 }
 
 #ifdef CONFIG_VIDEO_INTEL_IPU6
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+static short sensor_vc[NR_OF_DS5_STREAMS * 4] = {0,1,2,3, 2,3,0,1, 1,0,2,3, 3,2,0,1};
+module_param_array(sensor_vc, ushort, NULL, 0444);
+MODULE_PARM_DESC(sensor_vc, "VC set for sensors\n"
+		"\t\tsensor_vc=0,1,2,3,2,3,0,1,1,0,2,3,3,2,0,1");
+#else
 static short sensor_vc[NR_OF_DS5_STREAMS * 2] = {0,1,2,3, 2,3,0,1};
 module_param_array(sensor_vc, ushort, NULL, 0444);
 MODULE_PARM_DESC(sensor_vc, "VC set for sensors\n"
 		"\t\tsensor_vc=0,1,2,3,2,3,0,1");
+#endif
 
 //#define PLATFORM_AXIOMTEK 1
 #ifdef PLATFORM_AXIOMTEK
@@ -3470,8 +3573,17 @@ static short serdes_bus[4] = {5, 5, 5, 5};
 static short serdes_bus[4] = {2, 2, 4, 4};
 #endif
 module_param_array(serdes_bus, ushort, NULL, 0444);
-MODULE_PARM_DESC(serdes_bus, "max9295/6 deserializer i2c bus\n"
+#if defined(CONFIG_VIDEO_D4XX_MAX96724)
+MODULE_PARM_DESC(serdes_bus, "d4xx-max96724 deserializer i2c bus\n"
 		"\t\tserdes_bus=2,2,4,4");
+#elif defined(CONFIG_VIDEO_D4XX_MAX96712)
+MODULE_PARM_DESC(serdes_bus, "d4xx-max96712 deserializer i2c bus\n"
+		"\t\tserdes_bus=0,0,0,0");
+
+#else
+MODULE_PARM_DESC(serdes_bus, "d4xx-max9296 deserializer i2c bus\n"
+		"\t\tserdes_bus=2,2,4,4");
+#endif
 
 // Deserializer addresses can be 0x40 0x48 0x4a
 #ifdef PLATFORM_AXIOMTEK
@@ -3480,8 +3592,16 @@ static unsigned short des_addr[4] = {0x48, 0x4a, 0x68, 0x6c};
 static unsigned short des_addr[4] = {0x48, 0x4a, 0x48, 0x4a};
 #endif
 module_param_array(des_addr, ushort, NULL, 0444);
-MODULE_PARM_DESC(des_addr, "max9296 deserializer i2c address\n"
+#if defined(CONFIG_VIDEO_D4XX_MAX96724)
+MODULE_PARM_DESC(des_addr, "d4xx-max96724 deserializer i2c address\n"
 		"\t\tdes_addr=0x48,0x4a,0x48,0x4a");
+#elif defined(CONFIG_VIDEO_D4XX_MAX96712)
+MODULE_PARM_DESC(des_addr, "d4xx-max96712 deserializer i2c address\n"
+		"\t\tdes_addr=0x27,0x27,0x6b,0x6b");
+#else
+MODULE_PARM_DESC(des_addr, "d4xx-max9296 deserializer i2c address\n"
+		"\t\tdes_addr=0x48,0x4a,0x48,0x4a");
+#endif
 
 
 static int ds5_i2c_addr_setting(struct i2c_client *c, struct ds5 *state)
@@ -3492,8 +3612,13 @@ static int ds5_i2c_addr_setting(struct i2c_client *c, struct ds5 *state)
 	for (i = 0; i < 4; i++) {
 		if (c_bus == serdes_bus[i]) {
 			c->addr = des_addr[i];
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+			dev_info(&c->dev, "Set max96724@%d-0x%x Link reset\n",
+					c_bus, c->addr);
+#else
 			dev_info(&c->dev, "Set max9296@%d-0x%x Link reset\n",
 					c_bus, c->addr);
+#endif
 			ds5_write_8(state, 0x1000, 0x40); // sensor reset link
 		}
 	}
@@ -3560,7 +3685,11 @@ static int ds5_serdes_setup(struct ds5 *state)
 	}
 
 	/* Register sensor to deserializer dev */
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	ret = max96724_sdev_register(state->dser_dev, &state->g_ctx);
+#else
 	ret = max9296_sdev_register(state->dser_dev, &state->g_ctx);
+#endif
 	if (ret) {
 		dev_err(&c->dev, "gmsl deserializer register failed\n");
 		return ret;
@@ -3588,7 +3717,11 @@ static int ds5_serdes_setup(struct ds5 *state)
 		return ret;
 	}
 
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	ret = max96724_init_settings(state->dser_dev);
+#else
 	ret = max9296_init_settings(state->dser_dev);
+#endif
 	if (ret) {
 		dev_warn(&c->dev, "%s, failed to init max9296 settings\n",
 			__func__);
@@ -3830,7 +3963,10 @@ static int ds5_sensor_init(struct i2c_client *c, struct ds5 *state,
 	dev_t *dev_num = &state->client->dev.devt;
 #ifndef CONFIG_OF
 	struct d4xx_pdata *dpdata = c->dev.platform_data;
-	char suffix = dpdata->suffix;
+	char suffix = dpdata->subdev_info[0].suffix[0];
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	suffix -= 0x20; // capitalize the serdes suffixes if 4x GMSL deserializer
+#endif
 #endif
 	v4l2_i2c_subdev_init(sd, c, ops);
 	// See tegracam_v4l2.c tegracam_v4l2subdev_register()
@@ -3840,12 +3976,8 @@ static int ds5_sensor_init(struct i2c_client *c, struct ds5 *state,
 	sd->grp_id = *dev_num;
 	v4l2_set_subdevdata(sd, state);
 #ifndef CONFIG_OF
-	/*
-	 * TODO: suffix for 2 D457 connected to 1 Deser
-	 */
-	if (state->aggregated & 1)
-		suffix += 6;
-	snprintf(sd->name, sizeof(sd->name), "D4XX %s %c", name, suffix);
+	snprintf(sd->name, sizeof(sd->name), "D4XX %s %c",
+		 name, suffix);
 #else
 	snprintf(sd->name, sizeof(sd->name), "D4XX %s %d-%04x",
 		 name, i2c_adapter_id(c->adapter), c->addr);
@@ -4429,9 +4561,15 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 		// set manually, need to configure vc in pdata
 		state->g_ctx.dst_vc = vc_id;
 #endif
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		sensor->pipe_id =
+			max96724_get_available_pipe_id(state->dser_dev,
+					(int)state->g_ctx.dst_vc);
+#else
 		sensor->pipe_id =
 			max9296_get_available_pipe_id(state->dser_dev,
 					(int)state->g_ctx.dst_vc);
+#endif
 		if (sensor->pipe_id < 0) {
 			dev_err(&state->client->dev,
 				"No free pipe in max9296\n");
@@ -4472,6 +4610,10 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 			dev_dbg(&state->client->dev, "started after %dms\n",
 				i * DS5_START_POLL_TIME);
 		}
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		max9295_check_status(state->ser_dev);
+		max96724_check_status(state->dser_dev);
+#endif
 	} else { // off
 		ret = ds5_write(state, DS5_START_STOP_STREAM,
 				DS5_STREAM_STOP | stream_id);
@@ -4483,7 +4625,11 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 		if (state->is_y8 &&
 			state->ir.sensor.config.format->data_type ==
 			GMSL_CSI_DT_RGB_888) {
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+			max96724_reset_oneshot(state->dser_dev);
+#else
 			max9296_reset_oneshot(state->dser_dev);
+#endif
 		}
 #ifndef CONFIG_TEGRA_CAMERA_PLATFORM
 		// reset for IPU6
@@ -4495,11 +4641,17 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 			}
 		}
 		if (!streaming) {
+#if !defined(CONFIG_VIDEO_D4XX_MAX96724) && !defined(CONFIG_VIDEO_D4XX_MAX96712)
 			dev_warn(&state->client->dev, "max9296_reset_oneshot\n");
 				max9296_reset_oneshot(state->dser_dev);
+#endif
 		}
 #endif
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		if (max96724_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
+#else
 		if (max9296_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
+#endif
 			dev_warn(&state->client->dev, "release pipe failed\n");
 		sensor->pipe_id = -1;
 #else
@@ -4523,7 +4675,11 @@ static int ds5_mux_s_stream(struct v4l2_subdev *sd, int on)
 restore_s_state:
 #ifdef CONFIG_VIDEO_D4XX_SERDES
 	if (on && sensor->pipe_id >= 0) {
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+		if (max96724_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
+#else
 		if (max9296_release_pipe(state->dser_dev, sensor->pipe_id) < 0)
+#endif
 			dev_warn(&state->client->dev, "release pipe failed\n");
 		sensor->pipe_id = -1;
 	}
@@ -4711,7 +4867,10 @@ static int ds5_mux_init(struct i2c_client *c, struct ds5 *state)
 	int ret;
 #ifndef CONFIG_OF
 	struct d4xx_pdata *dpdata = c->dev.platform_data;
-	char suffix = dpdata->suffix;
+	char suffix = dpdata->subdev_info[0].suffix[0];
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	suffix -= 0x20; // capitalize the serdes suffixes if 4x GMSL deserializer
+#endif
 #endif
 	v4l2_i2c_subdev_init(sd, c, &ds5_mux_subdev_ops);
 	// See tegracam_v4l2.c tegracam_v4l2subdev_register()
@@ -4723,9 +4882,8 @@ static int ds5_mux_init(struct i2c_client *c, struct ds5 *state)
 	snprintf(sd->name, sizeof(sd->name), "DS5 mux %d-%04x",
 		 i2c_adapter_id(c->adapter), c->addr);
 #else
-	if (state->aggregated)
-		suffix += 6;
-	snprintf(sd->name, sizeof(sd->name), "DS5 mux %c", suffix);
+	snprintf(sd->name, sizeof(sd->name), "DS5 mux %c",
+		 suffix);
 #endif
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	entity->obj_type = MEDIA_ENTITY_TYPE_V4L2_SUBDEV;
@@ -5395,7 +5553,10 @@ static int ds5_chrdev_init(struct i2c_client *c, struct ds5 *state)
 	struct class **ds5_class = &state->dfu_dev.ds5_class;
 #ifndef CONFIG_OF
 	struct d4xx_pdata *pdata = c->dev.platform_data;
-	char suffix = pdata->suffix;
+	char suffix = pdata->subdev_info[0].suffix[0];
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	suffix -= 0x20; // capitalize the serdes suffixes if 4x GMSL deserializer
+#endif
 #endif
 	struct device *chr_dev;
 	char dev_name[sizeof(DS5_DRIVER_NAME_DFU) + 8];
@@ -5433,10 +5594,8 @@ static int ds5_chrdev_init(struct i2c_client *c, struct ds5 *state)
 	*dev_num = MKDEV(MAJOR(*dev_num), MINOR(*dev_num));
 	/* Create a device node for this device. */
 #ifndef CONFIG_OF
-	if (state->aggregated)
-		suffix += 6;
 	snprintf(dev_name, sizeof(dev_name), "%s-%c",
-		DS5_DRIVER_NAME_DFU, suffix);
+		 DS5_DRIVER_NAME_DFU, suffix);
 #else
 	snprintf (dev_name, sizeof(dev_name), "%s-%d-%04x",
 			DS5_DRIVER_NAME_DFU, i2c_adapter_id(c->adapter), c->addr);
@@ -5478,6 +5637,41 @@ static void ds5_substream_init(struct ds5 *state)
 	unsigned int mipi_csi2_type;
 	s64 *sub_stream = NULL;
 	state->pad_to_vc[DS5_MUX_PAD_EXTERNAL]= -1;
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	/* Derive Deser CSI link mapping  */
+	switch (state->g_ctx.serdes_csi_link) {
+	case GMSL_SERDES_CSI_LINK_A:
+		state->pad_to_vc[DS5_MUX_PAD_DEPTH]   = sensor_vc[0];
+		state->pad_to_vc[DS5_MUX_PAD_RGB]     = sensor_vc[1];
+		state->pad_to_vc[DS5_MUX_PAD_IR]      = sensor_vc[2];
+		state->pad_to_vc[DS5_MUX_PAD_IMU]     = sensor_vc[3];
+		break;
+	case GMSL_SERDES_CSI_LINK_B:
+		state->pad_to_vc[DS5_MUX_PAD_DEPTH] = sensor_vc[4];
+		state->pad_to_vc[DS5_MUX_PAD_RGB]   = sensor_vc[5];
+		state->pad_to_vc[DS5_MUX_PAD_IR]    = sensor_vc[6];
+		state->pad_to_vc[DS5_MUX_PAD_IMU]   = sensor_vc[7];
+		break;
+	case GMSL_SERDES_CSI_LINK_C:
+		state->pad_to_vc[DS5_MUX_PAD_DEPTH] = sensor_vc[8];
+		state->pad_to_vc[DS5_MUX_PAD_RGB]   = sensor_vc[9];
+		state->pad_to_vc[DS5_MUX_PAD_IR]    = sensor_vc[10];
+		state->pad_to_vc[DS5_MUX_PAD_IMU]   = sensor_vc[11];
+		break;
+	case GMSL_SERDES_CSI_LINK_D:
+		state->pad_to_vc[DS5_MUX_PAD_DEPTH] = sensor_vc[12];
+		state->pad_to_vc[DS5_MUX_PAD_RGB]   = sensor_vc[13];
+		state->pad_to_vc[DS5_MUX_PAD_IR]    = sensor_vc[14];
+		state->pad_to_vc[DS5_MUX_PAD_IMU]   = sensor_vc[16];
+		break;
+	default:
+		state->pad_to_vc[DS5_MUX_PAD_DEPTH]   = sensor_vc[0];
+		state->pad_to_vc[DS5_MUX_PAD_RGB]     = sensor_vc[1];
+		state->pad_to_vc[DS5_MUX_PAD_IR]      = sensor_vc[2];
+		state->pad_to_vc[DS5_MUX_PAD_IMU]     = sensor_vc[3];
+		break;
+	}
+#else
 	if (!state->aggregated) {
 		state->pad_to_vc[DS5_MUX_PAD_DEPTH]   = sensor_vc[0];
 		state->pad_to_vc[DS5_MUX_PAD_RGB]     = sensor_vc[1];
@@ -5489,10 +5683,46 @@ static void ds5_substream_init(struct ds5 *state)
 		state->pad_to_vc[DS5_MUX_PAD_IR]    = sensor_vc[6];
 		state->pad_to_vc[DS5_MUX_PAD_IMU]   = sensor_vc[7];
 	}
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(state->pad_to_substream); i++)
 		state->pad_to_substream[i] = -1;
 	/* match for IPU6 CSI2 BE SOC video capture pads */
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+	/* Derive Deser CSI link mapping  */
+	switch (state->g_ctx.serdes_csi_link) {
+	case GMSL_SERDES_CSI_LINK_A:
+		state->pad_to_substream[DS5_MUX_PAD_DEPTH]   = 0;
+		state->pad_to_substream[DS5_MUX_PAD_RGB]     = 2;
+		state->pad_to_substream[DS5_MUX_PAD_IR]      = 4;
+		state->pad_to_substream[DS5_MUX_PAD_IMU]     = 5;
+		break;
+	case GMSL_SERDES_CSI_LINK_B:
+		state->pad_to_substream[DS5_MUX_PAD_DEPTH] = 6;
+		state->pad_to_substream[DS5_MUX_PAD_RGB]   = 8;
+		state->pad_to_substream[DS5_MUX_PAD_IR]    = 10;
+		state->pad_to_substream[DS5_MUX_PAD_IMU]   = 11;
+		break;
+	case GMSL_SERDES_CSI_LINK_C:
+		state->pad_to_substream[DS5_MUX_PAD_DEPTH] = 1;
+		state->pad_to_substream[DS5_MUX_PAD_RGB]   = 3;
+		state->pad_to_substream[DS5_MUX_PAD_IR]    = 12;
+		state->pad_to_substream[DS5_MUX_PAD_IMU]   = 13;
+		break;
+	case GMSL_SERDES_CSI_LINK_D:
+		state->pad_to_substream[DS5_MUX_PAD_DEPTH] = 7;
+		state->pad_to_substream[DS5_MUX_PAD_RGB]   = 9;
+		state->pad_to_substream[DS5_MUX_PAD_IR]    = 14;
+		state->pad_to_substream[DS5_MUX_PAD_IMU]   = 15;
+		break;
+	default:
+		state->pad_to_substream[DS5_MUX_PAD_DEPTH]   = 0;
+		state->pad_to_substream[DS5_MUX_PAD_RGB]     = 2;
+		state->pad_to_substream[DS5_MUX_PAD_IR]      = 4;
+		state->pad_to_substream[DS5_MUX_PAD_IMU]     = 5;
+		break;
+	}
+#else
 	if (!state->aggregated) {
 		state->pad_to_substream[DS5_MUX_PAD_DEPTH]   = 0;
 		state->pad_to_substream[DS5_MUX_PAD_RGB]     = 2;
@@ -5505,6 +5735,8 @@ static void ds5_substream_init(struct ds5 *state)
 		state->pad_to_substream[DS5_MUX_PAD_IR]    = 10;
 		state->pad_to_substream[DS5_MUX_PAD_IMU]   = 11;
 	}
+#endif
+
 	dev_info(&state->client->dev, "%s() IPU6 CSI2 BE SOC video capture init : \n", __func__);
 	for (i = 0; i < ARRAY_SIZE(state->pad_to_substream); i++)
 	  if (state->pad_to_substream[i] >= 0)
@@ -5983,10 +6215,10 @@ e_regulator:
 
 	if (!state->g_ctx.serdev_found)
 		dev_warn(&c->dev, "graceful fallback due to unresponsive max9295, isolated SerDes %s single-link\n",
-			 state->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B");
+			 d4xx_subdev_csi_link_id(state->g_ctx.serdes_csi_link));
 	else
 		dev_warn(&c->dev, "graceful fallback due to unresponsive d4xx, isolated SerDes %s single-link\n",
-			 state->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B");
+			 d4xx_subdev_csi_link_id(state->g_ctx.serdes_csi_link));
 
 	mutex_lock(&serdes_lock__);
 	if (state->ser_i2c) {
@@ -5996,13 +6228,13 @@ e_regulator:
 	}
 	if (state->dser_i2c && !state->aggregated) {
 		dev_info(&c->dev, "remove  unresponding %s single-link deserializer i2c device 0x%x\n",
-			state->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B",
+			d4xx_subdev_csi_link_id(state->g_ctx.serdes_csi_link),
 			state->dser_i2c->addr);
 		i2c_unregister_device(state->dser_i2c);
 		state->dser_st.isolated = true;
 	} else if (state->dser_i2c && graceful_fallback) {
 		dev_info(&c->dev, "remove  unresponding %s single-link deserializer i2c device 0x%x\n",
-			state->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B",
+			d4xx_subdev_csi_link_id(state->g_ctx.serdes_csi_link),
 			state->dser_i2c->addr);
 		i2c_unregister_device(state->dser_i2c);
 	}
@@ -6040,6 +6272,18 @@ static void ds5_remove(struct i2c_client *c)
 			if (ret)
 				dev_warn(&c->dev,
 				  "failed in 9295 reset control\n");
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+			if (state->dser_i2c) {
+				dev_info(&c->dev, "ignore 96724 reset control, already remove for bus %d\n", c_bus);
+			} else {
+				dev_info(&c->dev, "trigger 96724 reset control on bus %d\n", c_bus);
+				ret = max96724_reset_control(state->dser_dev,
+							    state->g_ctx.s_dev);
+				if (ret)
+				  dev_warn(&c->dev,
+					   "failed in 96724 reset control\n");
+			}
+#else
 			if (state->dser_i2c) {
 				dev_info(&c->dev, "ignore 9296 reset control, already remove for bus %d\n", c_bus);
 			} else {
@@ -6050,6 +6294,7 @@ static void ds5_remove(struct i2c_client *c)
 				  dev_warn(&c->dev,
 					   "failed in 9296 reset control\n");
 			}
+#endif
 			ret = max9295_sdev_unpair(state->ser_dev,
 				state->g_ctx.s_dev);
 			if (ret)
@@ -6058,14 +6303,24 @@ static void ds5_remove(struct i2c_client *c)
 			if (state->dser_i2c) {
 				dev_info(&c->dev, "ignore 9296 unregister sdev, already remove for bus %d\n", c_bus);
 			} else {
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+				dev_info(&c->dev, "unregister 96724 sdev on bus %d\n", c_bus);
+				ret = max96724_sdev_unregister(state->dser_dev,
+							      state->g_ctx.s_dev);
+#else
 				dev_info(&c->dev, "unregister 9296 sdev on bus %d\n", c_bus);
 				ret = max9296_sdev_unregister(state->dser_dev,
 							      state->g_ctx.s_dev);
+#endif
 				if (ret)
 				  dev_warn(&c->dev,
 					   "failed to sdev unregister sdev\n");
 
+#if defined(CONFIG_VIDEO_D4XX_MAX96724) || defined(CONFIG_VIDEO_D4XX_MAX96712)
+				max96724_power_off(state->dser_dev);
+#else
 				max9296_power_off(state->dser_dev);
+#endif
 			}
 			mutex_unlock(&serdes_lock__);
 			break;
@@ -6079,11 +6334,11 @@ static void ds5_remove(struct i2c_client *c)
 	if (state->dser_i2c && !state->aggregated && !state->dser_st.isolated) {
 		i2c_unregister_device(state->dser_i2c);
 		dev_info(&c->dev, "remove  unresponding %s single-link deserializer i2c device 0x%x\n",
-			state->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B",
+			d4xx_subdev_csi_link_id(state->g_ctx.serdes_csi_link),
 			state->dser_i2c->addr);
 	} else if (state->dser_i2c && graceful_fallback) {
 		dev_info(&c->dev, "remove  unresponding %s single-link deserializer i2c device 0x%x\n",
-			state->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B",
+			d4xx_subdev_csi_link_id(state->g_ctx.serdes_csi_link),
 			state->dser_i2c->addr);
 		i2c_unregister_device(state->dser_i2c);
 	}
