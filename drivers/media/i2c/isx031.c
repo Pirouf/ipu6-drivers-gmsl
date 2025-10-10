@@ -789,6 +789,12 @@ static int isx031_probe(struct i2c_client *client)
 	/* initialize subdevice */
 	sd = &isx031->sd;
 	v4l2_i2c_subdev_init(sd, client, &isx031_subdev_ops);
+	if (isx031->platform_data && isx031->platform_data->suffix)
+		snprintf(sd->name,
+			 sizeof(sd->name), "isx031 %c",
+			 isx031->platform_data->suffix);
+	else
+		v4l2_i2c_subdev_set_name(sd, client, dev_name(&client->dev), NULL);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 #else
@@ -812,10 +818,6 @@ static int isx031_probe(struct i2c_client *client)
 		dev_err(&client->dev, "failed to find sensor: %d", ret);
 		return ret;
 	}
-
-	if (isx031->platform_data && isx031->platform_data->suffix)
-		snprintf(isx031->sd.name, sizeof(isx031->sd.name), "isx031 %c",
-			 isx031->platform_data->suffix);
 
 	mutex_init(&isx031->mutex);
 
