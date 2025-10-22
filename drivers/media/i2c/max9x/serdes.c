@@ -1800,16 +1800,25 @@ static int max9x_registered(struct v4l2_subdev *sd)
 			if (subdev_pdata) {
 				struct max9x_pdata *ser_pdata =
 					subdev_pdata->board_info.platform_data;
+				struct v4l2_subdev *subdev = NULL;
 
 				WARN_ON(ser_pdata->num_serial_links < 1);
 
 				ser_pdata->serial_links[0].des_client = common->client;
 				ser_pdata->serial_links[0].des_link_id = link_id;
 
-				struct v4l2_subdev *subdev =
-					v4l2_i2c_new_subdev_board(sd->v4l2_dev,
-								  common->muxc->adapter[link_id],
-								  &subdev_pdata->board_info, NULL);
+				/*
+				 * Isolate this link until after reset and potential address remapping,
+				 * avoiding a race condition with two serializers resetting same
+				 * physical i2c at the same time
+				 */
+				ret = max9x_des_isolate_serial_link(common, link_id);
+				if (!ret)
+					subdev = v4l2_i2c_new_subdev_board(
+						sd->v4l2_dev,
+						common->muxc->adapter[link_id],
+						&subdev_pdata->board_info,
+						NULL);
 
 				if (IS_ERR_OR_NULL(subdev)) {
 					dev_err(dev, "Failure registering serializer %s (0x%02x)",
