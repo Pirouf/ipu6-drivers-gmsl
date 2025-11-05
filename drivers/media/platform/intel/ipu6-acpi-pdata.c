@@ -690,13 +690,6 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 			// keep TI960 legacy
 			serdes_sdinfo[i].aggregated_link = 0;
 			serdes_suffix = SUFFIX_BASE + serdes_info.sensor_num + i + 1;
-		} else if (i >= 2) {
-			serdes_sdinfo[i].aggregated_link = i - 1;
-			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + i - 1;
-			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
-				serdes_name,
-				serdes_suffix,
-				serdes_info.deser_num);
 		} else if (( subdev_num == 1 ) &&
 			   ( serdes_info.des_map_addr == serdes_info.des_map_addr_2 ) &&
 			   ( !strcmp(serdes_info.i2c_adapter_bdf, serdes_info.i2c_adapter_bdf_2))) {
@@ -711,6 +704,13 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 			   ( !strcmp(serdes_info.i2c_adapter_bdf, serdes_info.i2c_adapter_bdf_2))) {
 			serdes_sdinfo[i].aggregated_link = 1;
 			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1;
+			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
+				serdes_name,
+				serdes_suffix,
+				serdes_info.deser_num);
+		} else if (i >= 1) {
+			serdes_sdinfo[i].aggregated_link = i;
+			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + i;
 			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
 				serdes_name,
 				serdes_suffix,
