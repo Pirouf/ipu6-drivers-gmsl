@@ -74,6 +74,10 @@ static int max9x_create_adapters_resume(struct max9x_common *common);
 
 static int max9x_remap_serializers(struct max9x_common *common, unsigned int link_id);
 static int max9x_create_adapters(struct max9x_common *common);
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+static int max9x_pad_to_csi_link(struct max9x_common *common, int pad);
+static int max9x_pad_to_serial_link(struct max9x_common *common, int pad);
+#endif
 static int max9x_csi_link_to_pad(struct max9x_common *common, int csi_id);
 static int max9x_serial_link_to_pad(struct max9x_common *common, int link_id);
 static int max9x_register_v4l_subdev(struct max9x_common *common);
@@ -275,7 +279,6 @@ static void *ipu6_pdata(struct device *dev)
 			PCA_00C003115(dev, ipu_sdinfo->suffix, sensor_alias, ser_sdinfo, ser_pdata);
 			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x1E, video_pipe_id, 0x1E, 1); /* YUV422 8-bit */
 		}
-
 		des_video_pipe->src_pipe_id = video_pipe_id;
 	}
 
@@ -1289,6 +1292,7 @@ static u32 max9x_get_sink_pad_by_pad(u32 source_pad, u32 source_stream,
 }
 */
 
+#ifndef CONFIG_BACKWARD_INTEL_ISYS
 static int _max9x_set_stream(struct v4l2_subdev *subdev,
 					 struct v4l2_subdev_state *state,
 					 u32 pad, u64 streams_mask, int enable)
@@ -1307,7 +1311,6 @@ static int _max9x_set_stream(struct v4l2_subdev *subdev,
 
 	return max9x_subdev_s_stream(common, i, enable);
 }
-
 static int max9x_enable_streams(struct v4l2_subdev *subdev,
 				 struct v4l2_subdev_state *state,
 				 u32 pad, u64 streams_mask)
@@ -1321,6 +1324,7 @@ static int max9x_disable_streams(struct v4l2_subdev *subdev,
 {
 	return _max9x_set_stream(subdev, state, pad, streams_mask, false);
 }
+#endif
 
 static struct v4l2_mbus_framefmt *__max9x_get_ffmt(struct v4l2_subdev *sd,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
@@ -1430,11 +1434,47 @@ static int max9x_set_fmt(struct v4l2_subdev *sd,
 	}
 	fmt->format = *ffmt;
 
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+	int substream = max9x_pad_to_serial_link(common, fmt->pad);
+	dev_dbg(sd->dev, "fmt-substream: width: %d, height: %d, code: 0x%x, dt: 0x%x, vc:%d.",
+		ffmt->width, ffmt->height, ffmt->code, mbus_code_to_csi_dt(ffmt->code), substream);
+	if (substream >= 0) {
+		set_sub_stream_fmt(&v4l->substreams[substream], ffmt->code);
+		set_sub_stream_h(&v4l->substreams[substream], ffmt->height);
+		set_sub_stream_w(&v4l->substreams[substream], ffmt->width);
+		set_sub_stream_dt(&v4l->substreams[substream], mbus_code_to_csi_dt(ffmt->code));
+		set_sub_stream_vc(&v4l->substreams[substream], substream);
+	}
+unlock:
+#endif
 	mutex_unlock(&v4l->lock);
 
 	return 0;
 }
 
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+static int max9x_get_frame_desc(struct v4l2_subdev *sd,
+	unsigned int pad, struct v4l2_mbus_frame_desc *desc)
+{
+	struct max9x_common *common = max9x_sd_to_common(sd);
+	if (pad < 0 || pad >= common->v4l.num_pads)
+		return -EINVAL;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+	struct media_pad *remote_pad = media_entity_remote_pad(&sd->entity.pads[pad]);
+#else
+	struct media_pad *remote_pad = media_pad_remote_pad_first(&sd->entity.pads[pad]);
+#endif
+	if (remote_pad) {
+		struct v4l2_subdev *remote_sd = media_entity_to_v4l2_subdev(remote_pad->entity);
+
+		dev_dbg(sd->dev, "remote sd: %s", remote_sd->name);
+		return v4l2_subdev_call(remote_sd, pad, get_frame_desc, 0, desc);
+	}
+
+	return 0;
+}
+#else
 static int max9x_get_frame_desc(struct v4l2_subdev *sd,
 	unsigned int pad, struct v4l2_mbus_frame_desc *desc)
 {
@@ -1520,6 +1560,7 @@ static int max9x_get_frame_desc(struct v4l2_subdev *sd,
 
 	return 0;
 }
+#endif
 
 static int max9x_enum_mbus_code(struct v4l2_subdev *sd,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
@@ -1534,16 +1575,21 @@ static int max9x_enum_mbus_code(struct v4l2_subdev *sd,
 	return 0;
 }
 
+#ifndef CONFIG_BACKWARD_INTEL_ISYS
 static int _max9x_set_routing(struct v4l2_subdev *sd,
 			      struct v4l2_subdev_state *state,
 			      struct v4l2_subdev_krouting *routing)
 {
+
 	static const struct v4l2_mbus_framefmt format = {
 		.width = 1920,
 		.height = 1536,
 		.code = MEDIA_BUS_FMT_UYVY8_1X16,
 	};
 	int ret;
+	struct max9x_common *common = max9x_sd_to_common(sd);
+	struct device *dev = common->dev;
+	int i;
 
 	/*
 	 * Note: we can only support up to V4L2_FRAME_DESC_ENTRY_MAX, until
@@ -1552,6 +1598,14 @@ static int _max9x_set_routing(struct v4l2_subdev *sd,
 
 	if (routing->num_routes > V4L2_FRAME_DESC_ENTRY_MAX)
 		return -E2BIG;
+
+	for (i = 0; i < routing->num_routes; ++i) {
+		const struct v4l2_subdev_route *route = &routing->routes[i];
+		dev_dbg(dev, "route %u sink (%u/%u) \n",
+			i, route->sink_pad, route->sink_stream);
+		dev_dbg(dev, "route %u source (%u/%u) \n",
+			i, route->source_pad, route->source_stream);
+	}
 
 	ret = v4l2_subdev_routing_validate(sd, routing,
 					   V4L2_SUBDEV_ROUTING_ONLY_1_TO_1 |
@@ -1614,15 +1668,18 @@ static int max9x_init_state(struct v4l2_subdev *sd,
 		return _max9x_set_routing(sd, state, &ser_routing);
 }
 #endif
+#endif
 
 static const struct v4l2_subdev_pad_ops max9x_sd_pad_ops = {
 	.get_fmt = max9x_get_fmt,
 	.set_fmt = max9x_set_fmt,
 	.get_frame_desc = max9x_get_frame_desc,
 	.enum_mbus_code = max9x_enum_mbus_code,
+#ifndef CONFIG_BACKWARD_INTEL_ISYS
 	.set_routing = max9x_set_routing,
 	.enable_streams = max9x_enable_streams,
 	.disable_streams = max9x_disable_streams,
+#endif
 };
 
 static struct v4l2_subdev_ops max9x_sd_ops = {
@@ -1781,8 +1838,10 @@ static int max9x_registered(struct v4l2_subdev *sd)
 
 static struct v4l2_subdev_internal_ops max9x_sd_internal_ops = {
 	.registered = max9x_registered,
+#ifndef CONFIG_BACKWARD_INTEL_ISYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
 	.init_state = max9x_init_state,
+#endif
 #endif
 };
 
@@ -1795,6 +1854,30 @@ static int max9x_s_ctrl(struct v4l2_ctrl *ctrl)
 	dev_dbg(dev, "s_ctrl");
 
 	switch (ctrl->id) {
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+        case V4L2_CID_IPU_SET_SUB_STREAM:
+        {
+                u32 val;
+                u8 vc_id;
+                u8 state;
+
+                val = (*ctrl->p_new.p_s64 & 0xFFFF);
+                dev_warn(dev, "V4L2_CID_IPU_SET_SUB_STREAM %x", val);
+                vc_id = (val >> 8) & 0x00FF;
+                state = val & 0x00FF;
+                if (vc_id > common->num_serial_links - 1) {
+                        dev_err(dev, "invalid vc %d", vc_id);
+                        break;
+                }
+
+                //NOTE: vc_id == substream == serial_link
+                if (common->type == MAX9X_DESERIALIZER)
+                        return max9x_subdev_s_stream(common, vc_id, state);
+                else
+                        return -EINVAL;
+        }
+                break;
+#endif
 	case V4L2_CID_LINK_FREQ: {
 		if (ctrl->p_new.p_u8) {
 			if (*ctrl->p_new.p_u8 <= (ARRAY_SIZE(max9x_op_sys_clock) - 1)) {
@@ -1847,7 +1930,44 @@ static struct v4l2_ctrl_config max9x_v4l2_controls[] = {
 		.menu_skip_mask = 0,
 		.qmenu_int = max9x_op_sys_clock,
 	},
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+        {
+                .ops = &max9x_ctrl_ops,
+                .id = V4L2_CID_IPU_QUERY_SUB_STREAM,
+                .name = "query virtual channel",
+                .type = V4L2_CTRL_TYPE_INTEGER_MENU,
+                .max = 0,
+                .min = 0,
+                .def = 0,
+                .menu_skip_mask = 0,
+                .qmenu_int = NULL,
+        },
+        {
+                .ops = &max9x_ctrl_ops,
+                .id = V4L2_CID_IPU_SET_SUB_STREAM,
+                .name = "set virtual channel",
+                .type = V4L2_CTRL_TYPE_INTEGER64,
+                .max = 0xFFFF,
+                .min = 0,
+                .def = 0,
+                .step = 1,
+        },
+#endif
 };
+
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+static int max9x_pad_to_csi_link(struct max9x_common *common, int pad)
+{
+        return (pad < common->num_csi_links) ? pad : -EINVAL;
+}
+
+static int max9x_pad_to_serial_link(struct max9x_common *common, int pad)
+{
+        return (pad >= common->num_csi_links && (pad - common->num_csi_links) < common->num_serial_links)
+                ? (pad - common->num_csi_links)
+                : -EINVAL;
+}
+#endif
 
 static int max9x_csi_link_to_pad(struct max9x_common *common, int csi_id)
 {
@@ -1876,13 +1996,22 @@ static int max9x_register_v4l_subdev(struct max9x_common *common)
 	v4l2_i2c_subdev_init(sd, client, &max9x_sd_ops);
 	snprintf(sd->name, sizeof(sd->name), "%s %s", client->name, pdata->suffix);
 
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+#else
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_STREAMS;
+#endif
 	sd->internal_ops = &max9x_sd_internal_ops;
 	sd->entity.function = MEDIA_ENT_F_VID_MUX;
 
 	v4l->num_pads = common->num_csi_links + common->num_serial_links;
 	v4l->pads = devm_kzalloc(dev, v4l->num_pads * sizeof(*v4l->pads), GFP_KERNEL);
 	v4l->ffmts = devm_kzalloc(dev, v4l->num_pads * sizeof(*v4l->ffmts), GFP_KERNEL);
+
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+        v4l->num_substreams = common->num_serial_links;
+        v4l->substreams = devm_kzalloc(dev, v4l->num_substreams * sizeof(*v4l->substreams), GFP_KERNEL);
+#endif
 
 	//change sink/source turn
 	for (unsigned int p = 0; p < v4l->num_pads; p++) {
@@ -1909,9 +2038,24 @@ static int max9x_register_v4l_subdev(struct max9x_common *common)
 		return ret;
 	}
 
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+	ret = media_entity_pads_init(&v4l->sd.entity, v4l->num_pads, v4l->pads);
+	if (ret) {
+		dev_err(dev, "Failed to init media entity: %d", ret);
+		return ret;
+	}
+#endif
+
 	for (int i = 0; i < ARRAY_SIZE(max9x_v4l2_controls); i++) {
 		struct v4l2_ctrl_config *ctrl_config = &max9x_v4l2_controls[i];
 		struct v4l2_ctrl *ctrl;
+
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+                if (ctrl_config->id == V4L2_CID_IPU_QUERY_SUB_STREAM) {
+                        ctrl_config->qmenu_int = v4l->substreams;
+                        ctrl_config->max = v4l->num_substreams - 1;
+                }
+#endif
 
 		if (ctrl_config->id == V4L2_CID_LINK_FREQ) {
 			unsigned int link_freq_n;
@@ -1935,18 +2079,24 @@ static int max9x_register_v4l_subdev(struct max9x_common *common)
 		if (!ctrl) {
 			ret = ctrl_handler->error;
 			dev_err(dev, "Failed to create V4L2 control %s: %d", ctrl_config->name, ret);
+#ifdef CONFIG_BACKWARD_INTEL_ISYS
+			goto probe_error_media_entity_cleanup;
+#else
 			goto probe_error_v4l2_ctrl_handler_free;
+#endif
 		}
 	}
 
 	v4l->link_freq = v4l2_ctrl_find(ctrl_handler, V4L2_CID_LINK_FREQ);
 	v4l->sd.ctrl_handler = ctrl_handler;
 
+#ifndef CONFIG_BACKWARD_INTEL_ISYS
 	ret = media_entity_pads_init(&v4l->sd.entity, v4l->num_pads, v4l->pads);
 	if (ret) {
 		dev_err(dev, "Failed to init media entity: %d", ret);
 		goto probe_error_v4l2_ctrl_handler_free;
 	}
+#endif
 
 	ret = v4l2_subdev_init_finalize(&v4l->sd);
 	if (ret) {

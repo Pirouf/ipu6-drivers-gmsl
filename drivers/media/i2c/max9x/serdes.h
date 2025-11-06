@@ -42,6 +42,9 @@
 #include <uapi/linux/media-bus-format.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) ||  defined(CONFIG_BACKWARD_INTEL_ISYS)
+#ifdef CONFIG_VIDEO_INTEL_IPU6
+#include <uapi/linux/ipu-isys.h>
+#endif
 #include <media/ipu-isys.h>
 #else
 #include "ipu6-isys.h"
@@ -84,6 +87,33 @@
 			return err; \
 		} \
 	} while (0)
+
+#ifdef CONFIG_VIDEO_INTEL_IPU6
+#define set_sub_stream_fmt(index, code) do { \
+        *(index) &= 0xFFFFFFFFFFFF0000; \
+        *(index) |= ((s64)(code) & 0xFFFF); \
+} while(0)
+
+#define set_sub_stream_h(index, height) do { \
+        *(index) &= 0xFFFFFFFF0000FFFF; \
+        *(index) |= ((s64)(height) & 0xFFFF) << 16;\
+} while(0)
+
+#define set_sub_stream_w(index, width) do { \
+        *(index) &= 0xFFFF0000FFFFFFFF; \
+        *(index) |= ((s64)(width) & 0xFFFF) << 32;\
+} while(0)
+
+#define set_sub_stream_dt(index, dt) do { \
+        *(index) &= 0xFF00FFFFFFFFFFFF; \
+        *(index) |= ((s64)(dt) & 0xFF) << 48;\
+} while(0)
+
+#define set_sub_stream_vc(index, vc) do { \
+        *(index) &= 0x00FFFFFFFFFFFFFF; \
+        *(index) |= ((s64)(vc) & 0xFF) << 56;\
+} while(0)
+#endif
 
 /* dt is defined in soft_dt_x, such as BACKTOP15(0x316).[5:0] */
 #define MIPI_CSI2_TYPE_YUV422_8		0x1e
@@ -194,6 +224,10 @@ struct max9x_serdes_v4l {
 	struct v4l2_ctrl_handler ctrl_handler;
 	struct media_pad *pads;
 	int num_pads;
+#ifdef CONFIG_VIDEO_INTEL_IPU6
+        s64 *substreams;
+        int num_substreams;
+#endif
 
 	struct v4l2_ctrl *link_freq; // CSI link frequency, used to determine ISP clock
 	struct v4l2_mbus_framefmt *ffmts;
