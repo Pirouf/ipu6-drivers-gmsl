@@ -238,6 +238,7 @@ struct max9x_serdes_csi_link {
 	bool enabled;
 	unsigned int usecount;
 	struct max9x_serdes_csi_config config;
+	struct mutex csi_mutex;
 };
 
 struct max9x_serdes_video_pipe {

@@ -549,14 +549,11 @@ static int max9296_set_csi_link_enabled(struct max9x_common *common, unsigned in
 	if (WARN_ONCE(enable && csi_link->config.num_lanes == 0, "Tried to enable CSI port with no lanes???"))
 		return -EINVAL;
 
-	if (enable)
-		csi_link->usecount++;
-	else if (csi_link->usecount > 0)
-		csi_link->usecount--;
+	mutex_lock(&csi_link->csi_mutex);
 
 	dev_dbg(dev, "CSI link %d: %s (%d users)", csi_id, (enable ? "enable" : "disable"), csi_link->usecount);
 
-	if (enable && csi_link->usecount == 1) {
+	if (enable && csi_link->usecount == 0) {
 		// Enable && first user
 		ret = max9296_set_initial_deskew(common, csi_id, csi_link->config.auto_init_deskew_enabled,
 						 csi_link->config.initial_deskew_width);
@@ -575,7 +572,7 @@ static int max9296_set_csi_link_enabled(struct max9x_common *common, unsigned in
 		if (ret)
 			return ret;
 
-	} else if (!enable && csi_link->usecount == 0) {
+	} else if (!enable && csi_link->usecount == 1) {
 		// Disable && no more users
 		ret = max9296_set_phy_enabled(common, csi_id, false);
 		if (ret)
@@ -586,6 +583,13 @@ static int max9296_set_csi_link_enabled(struct max9x_common *common, unsigned in
 			return ret;
 
 	}
+
+	if (enable)
+		csi_link->usecount++;
+	else if (csi_link->usecount > 0)
+		csi_link->usecount--;
+
+	mutex_unlock(&csi_link->csi_mutex);
 
 	return 0;
 }
@@ -660,10 +664,11 @@ static int max9296_set_serial_link_routing(struct max9x_common *common, unsigned
 			if (ret)
 				return ret;
 
-			if (common->csi_link[config->map[map_id].dst_csi].config.auto_start) {
+			if (!config->map[map_id].is_csi_enabled && common->csi_link[config->map[map_id].dst_csi].config.auto_start) {
 				ret = max9296_set_csi_link_enabled(common, config->map[map_id].dst_csi, true);
 				if (ret)
 					return ret;
+				config->map[map_id].is_csi_enabled = true;
 			}
 		}
 
@@ -839,9 +844,12 @@ static int max9296_disable_serial_link(struct max9x_common *common, unsigned int
 			return ret;
 
 		for (map_id = 0; map_id < config->num_maps; map_id++) {
+			if (!config->map[map_id].is_csi_enabled)
+				continue;
 			ret = max9296_set_csi_link_enabled(common, config->map[map_id].dst_csi, false);
 			if (ret)
 				return ret;
+			config->map[map_id].is_csi_enabled = false;
 		}
 	}
 

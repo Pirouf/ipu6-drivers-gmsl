@@ -823,6 +823,9 @@ void max9x_destroy(struct max9x_common *common)
 	i2c_mux_del_adapters(common->muxc);
 	mutex_destroy(&common->link_mutex);
 	mutex_destroy(&common->isolate_mutex);
+	for (int i = 0; i < common->num_csi_links; i++) {
+		mutex_destroy(&common->csi_link[i].csi_mutex);
+	}
 }
 EXPORT_SYMBOL(max9x_destroy);
 
@@ -1233,15 +1236,16 @@ static int max9x_subdev_s_stream(struct max9x_common *common, unsigned int seria
 
 				for (map_id = 0; map_id < video_pipe->config.num_maps; map_id++) {
 					unsigned int csi_link_id = video_pipe->config.map[map_id].dst_csi;
-
-					if (common->csi_link[csi_link_id].config.auto_start)
-						continue; // Already started at probe
+					if (common->csi_link[csi_link_id].config.auto_start ||
+					    video_pipe->config.map[map_id].is_csi_enabled)
+						continue; // Already started at probe or csi already enabled
 
 					if (common->csi_link_ops && common->csi_link_ops->enable) {
 						err = common->csi_link_ops->enable(common, csi_link_id);
 						if (err)
 							dev_warn(common->dev, "csi_link_ops->enable CSI %d failed: %d",
 									 csi_link_id, err);
+						video_pipe->config.map[map_id].is_csi_enabled = true;
 					}
 				}
 			}
@@ -2535,6 +2539,7 @@ static int max9x_parse_csi_link_pdata(struct max9x_common *common,
 
 	struct max9x_serdes_csi_link *csi_link = &common->csi_link[csi_link_id];
 
+	mutex_init(&csi_link->csi_mutex);
 	csi_link->enabled = true;
 
 	csi_link->config.num_maps = csi_link_pdata->num_maps;
