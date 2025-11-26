@@ -223,6 +223,68 @@ static void PCA_00C003115(struct device *dev, char *suffix, unsigned int virt_ad
 	csi_link->num_lanes = 4;
 }
 
+static void PCA_00C003106(struct device *dev, char *suffix, unsigned int virt_addr,
+			  struct max9x_subdev_pdata *ser_sdinfo, struct max9x_pdata *ser_pdata)
+{
+	ser_pdata->num_subdevs = 1;
+	ser_pdata->subdevs = devm_kzalloc(dev, ser_pdata->num_subdevs * sizeof(*ser_pdata->subdevs), GFP_KERNEL);
+	pdata_sensor(dev, &ser_pdata->subdevs[0], "imx390", 0x21, virt_addr);
+
+	//NOTE: i2c_dev_set_name() will prepend "i2c-" to this nam
+	char *dev_name = devm_kzalloc(dev, I2C_NAME_SIZE, GFP_KERNEL);
+
+	snprintf(dev_name, I2C_NAME_SIZE, "imx390 %s", suffix);
+	ser_pdata->subdevs[0].board_info.dev_name = dev_name;
+	ser_pdata->external_refclk_enable = true;
+
+	struct max9x_video_pipe_pdata *ser_video_pipe = &ser_pdata->video_pipes[0];
+
+	ser_video_pipe->num_data_types = 1;
+	ser_video_pipe->data_types = devm_kzalloc(dev,
+				ser_video_pipe->num_data_types * sizeof(*ser_video_pipe->data_types), GFP_KERNEL);
+	ser_video_pipe->data_types[0] = 0x2C; /* 12-bit raw CSI-2 Data Type */
+
+	ser_pdata->num_csi_links = 1;
+	ser_pdata->csi_links = devm_kzalloc(dev, ser_pdata->num_csi_links * sizeof(*ser_pdata->csi_links), GFP_KERNEL);
+
+	struct max9x_csi_link_pdata *csi_link = &ser_pdata->csi_links[0];
+
+	csi_link->link_id = 1;
+	csi_link->num_lanes = 4;
+}
+
+static void PCA_00C003089(struct device *dev, char *suffix, unsigned int virt_addr,
+			  struct max9x_subdev_pdata *ser_sdinfo, struct max9x_pdata *ser_pdata)
+{
+
+	ser_pdata->num_subdevs = 1;
+	ser_pdata->subdevs = devm_kzalloc(dev, ser_pdata->num_subdevs * sizeof(*ser_pdata->subdevs), GFP_KERNEL);
+	pdata_sensor(dev, &ser_pdata->subdevs[0], "ar0234", 0x10, virt_addr);
+
+	//NOTE: i2c_dev_set_name() will prepend "i2c-" to this nam
+	char *dev_name = devm_kzalloc(dev, I2C_NAME_SIZE, GFP_KERNEL);
+
+	snprintf(dev_name, I2C_NAME_SIZE, "ar0234 %s", suffix);
+	ser_pdata->subdevs[0].board_info.dev_name = dev_name;
+	ser_pdata->external_refclk_enable = true;
+
+	struct max9x_video_pipe_pdata *ser_video_pipe = &ser_pdata->video_pipes[0];
+
+	ser_video_pipe->num_data_types = 1;
+	ser_video_pipe->data_types = devm_kzalloc(dev,
+						  ser_video_pipe->num_data_types * sizeof(*ser_video_pipe->data_types), GFP_KERNEL);
+
+	ser_video_pipe->data_types[0] = 0x2B; /* 10-bit raw CSI-2 Data Type */
+
+	ser_pdata->num_csi_links = 1;
+	ser_pdata->csi_links = devm_kzalloc(dev, ser_pdata->num_csi_links * sizeof(*ser_pdata->csi_links), GFP_KERNEL);
+
+	struct max9x_csi_link_pdata *csi_link = &ser_pdata->csi_links[0];
+
+	csi_link->link_id = 1;
+	csi_link->num_lanes = 4;
+}
+
 static void *ipu6_pdata(struct device *dev)
 {
 	/*
@@ -278,6 +340,19 @@ static void *ipu6_pdata(struct device *dev)
 
 			PCA_00C003115(dev, ipu_sdinfo->suffix, sensor_alias, ser_sdinfo, ser_pdata);
 			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x1E, video_pipe_id, 0x1E, 1); /* YUV422 8-bit */
+		} else if (!strcmp(sensor_name, "imx390")) {
+			struct max9x_pdata *ser_pdata = PCA_00C003084(dev, ipu_sdinfo->suffix, ser_alias, ser_sdinfo);
+
+			PCA_00C003106(dev, ipu_sdinfo->suffix, sensor_alias, ser_sdinfo, ser_pdata);
+			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x2C, video_pipe_id, 0x2C, 1); /* 12-bit raw */
+		} else if (!strcmp(sensor_name, "ar0234")) {
+			struct max9x_pdata *ser_pdata = PCA_00C003084(dev, ipu_sdinfo->suffix, ser_alias, ser_sdinfo);
+
+			PCA_00C003089(dev, ipu_sdinfo->suffix, sensor_alias, ser_sdinfo, ser_pdata);
+			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x2B, video_pipe_id, 0x2B, 1); /* 10-bit raw */
+		} else {
+			dev_err(dev, "Sensor not supported! %s\n", sensor_name);
+			return NULL;
 		}
 		des_video_pipe->src_pipe_id = video_pipe_id;
 	}
