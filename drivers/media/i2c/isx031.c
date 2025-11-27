@@ -87,6 +87,7 @@ struct isx031 {
 
 	struct isx031_platform_data *platform_data;
 	struct gpio_desc *reset_gpio;
+	struct gpio_desc *fsin_gpio;
 
 	/* Streaming on/off */
 	bool streaming;
@@ -785,6 +786,15 @@ static int isx031_probe(struct i2c_client *client)
 		dev_dbg(&client->dev, "Found reset GPIO");
 		isx031_reset(isx031->reset_gpio);
 	}
+
+	isx031->fsin_gpio = devm_gpiod_get_optional(&client->dev, "fsin",
+						    GPIOD_OUT_LOW);
+	if (IS_ERR(isx031->fsin_gpio))
+		return -EPROBE_DEFER;
+	else if (isx031->fsin_gpio == NULL)
+		dev_warn(&client->dev, "Fsin GPIO not found");
+	else
+		dev_dbg(&client->dev, "Found Fsin GPIO");
 
 	/* initialize subdevice */
 	sd = &isx031->sd;
