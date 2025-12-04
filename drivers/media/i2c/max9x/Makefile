@@ -8,3 +8,4 @@ ccflags-y += -DCONFIG_BACKWARD_INTEL_ISYS
 obj-m		+= serdes.o
 obj-m		+= max9295.o
 obj-m		+= max9296.o
+obj-m		+= max96712.o

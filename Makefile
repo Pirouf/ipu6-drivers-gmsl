@@ -27,6 +27,11 @@ KERNEL_SRC := /lib/modules/$(shell uname -r)/build
 MODSRC := $(shell pwd)
 ccflags-y += -I$(MODSRC)/include/
 
+# Define config macros for conditional compilation in ipu6-acpi.c
+# IS_ENABLED() checks for CONFIG_XXX or CONFIG_XXX_MODULE
+ccflags-y += -DCONFIG_VIDEO_MAX9X_MODULE=1
+ccflags-y += -DCONFIG_VIDEO_ISX031_MODULE=1
+
 NOSTDINC_FLAGS += \
 	-I$(M)/backport-include/ \
 	-I$(M)/include/

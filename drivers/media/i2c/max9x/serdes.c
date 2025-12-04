@@ -295,6 +295,7 @@ static void *ipu6_pdata(struct device *dev)
 	 */
 	struct serdes_platform_data *ipu_pdata = dev->platform_data;
 	unsigned int num_ports = ipu_pdata->subdev_num;
+	unsigned int active_csi_port = 1;
 	struct max9x_pdata *des_pdata = devm_kzalloc(dev, sizeof(*des_pdata), GFP_KERNEL);
 
 	snprintf(des_pdata->suffix, sizeof(des_pdata->suffix), "%c", ipu_pdata->suffix);
@@ -318,6 +319,7 @@ static void *ipu6_pdata(struct device *dev)
 		const char *sensor_name = ipu_sdinfo->board_info.type;
 		unsigned int ser_alias = ipu_sdinfo->ser_alias;
 		unsigned int sensor_alias = ipu_sdinfo->board_info.addr;
+		unsigned int dst_csi_port = active_csi_port;
 
 		serial_link->link_id = serial_link_id;
 		serial_link->link_type = MAX9X_LINK_TYPE_GMSL2;
@@ -332,29 +334,30 @@ static void *ipu6_pdata(struct device *dev)
 
 		ser_sdinfo->serial_link_id = serial_link_id;
 
-		SET_CSI_MAP(des_video_pipe->maps, 0, 0, 0x00, video_pipe_id, 0x00, 1);
-		SET_CSI_MAP(des_video_pipe->maps, 1, 0, 0x01, video_pipe_id, 0x01, 1);
+		SET_CSI_MAP(des_video_pipe->maps, 0, 0, 0x00, video_pipe_id, 0x00, dst_csi_port);
+		SET_CSI_MAP(des_video_pipe->maps, 1, 0, 0x01, video_pipe_id, 0x01, dst_csi_port);
 
 		if (strcmp(sensor_name, "isx031") == 0) {
 			struct max9x_pdata *ser_pdata = PCA_00C003084(dev, ipu_sdinfo->suffix, ser_alias, ser_sdinfo);
 
 			PCA_00C003115(dev, ipu_sdinfo->suffix, sensor_alias, ser_sdinfo, ser_pdata);
-			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x1E, video_pipe_id, 0x1E, 1); /* YUV422 8-bit */
+			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x1E, video_pipe_id, 0x1E, dst_csi_port); /* YUV422 8-bit */
 		} else if (!strcmp(sensor_name, "imx390")) {
 			struct max9x_pdata *ser_pdata = PCA_00C003084(dev, ipu_sdinfo->suffix, ser_alias, ser_sdinfo);
 
 			PCA_00C003106(dev, ipu_sdinfo->suffix, sensor_alias, ser_sdinfo, ser_pdata);
-			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x2C, video_pipe_id, 0x2C, 1); /* 12-bit raw */
+			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x2C, video_pipe_id, 0x2C, dst_csi_port); /* 12-bit raw */
 		} else if (!strcmp(sensor_name, "ar0234")) {
 			struct max9x_pdata *ser_pdata = PCA_00C003084(dev, ipu_sdinfo->suffix, ser_alias, ser_sdinfo);
 
 			PCA_00C003089(dev, ipu_sdinfo->suffix, sensor_alias, ser_sdinfo, ser_pdata);
-			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x2B, video_pipe_id, 0x2B, 1); /* 10-bit raw */
+			SET_CSI_MAP(des_video_pipe->maps, 2, 0, 0x2B, video_pipe_id, 0x2B, dst_csi_port); /* 10-bit raw */
 		} else {
 			dev_err(dev, "Sensor not supported! %s\n", sensor_name);
 			return NULL;
 		}
 		des_video_pipe->src_pipe_id = video_pipe_id;
+		active_csi_port = dst_csi_port;
 	}
 
 	des_pdata->num_csi_links = 1;
@@ -363,16 +366,29 @@ static void *ipu6_pdata(struct device *dev)
 	do {
 		struct max9x_csi_link_pdata *csi_link = &des_pdata->csi_links[0];
 
-		csi_link->link_id = 1;
-		csi_link->num_lanes = 2;
+		csi_link->link_id = active_csi_port;
+		csi_link->num_lanes = ipu_pdata->deser_nlanes;
 		csi_link->tx_rate_mbps = 2000;
 		csi_link->auto_initial_deskew = true;
 		csi_link->initial_deskew_width = 7;
 		csi_link->auto_start = false;
-		csi_link->num_maps = 2;
+		csi_link->num_maps = ipu_pdata->deser_nlanes;
 		csi_link->maps = devm_kzalloc(dev, csi_link->num_maps * sizeof(*csi_link->maps), GFP_KERNEL);
-		SET_PHY_MAP(csi_link->maps, 0, 0, 1, 0); /* 0 (DA0) -> PHY1.0 */
-		SET_PHY_MAP(csi_link->maps, 1, 1, 1, 1); /* 1 (DA1) -> PHY1.1 */
+		if (active_csi_port == 1) {
+			SET_PHY_MAP(csi_link->maps, 0, 0, 1, 0); /* 0 (DA0) -> PHY1.0 */
+			SET_PHY_MAP(csi_link->maps, 1, 1, 1, 1); /* 1 (DA1) -> PHY1.1 */
+			if (csi_link->num_maps == 4) {
+				SET_PHY_MAP(csi_link->maps, 2, 2, 0, 0); /* 2 (DA2) -> PHY0.0 */
+				SET_PHY_MAP(csi_link->maps, 3, 3, 0, 1); /* 3 (DA3) -> PHY0.1 */
+			}
+		} else if (active_csi_port == 2) {
+			SET_PHY_MAP(csi_link->maps, 0, 0, 2, 0); /* 0 (DA0) -> PHY2.0 */
+			SET_PHY_MAP(csi_link->maps, 1, 1, 2, 1); /* 1 (DA1) -> PHY2.1 */
+			if (csi_link->num_maps == 4) {
+				SET_PHY_MAP(csi_link->maps, 2, 2, 3, 0); /* 2 (DA2) -> PHY3.0 */
+				SET_PHY_MAP(csi_link->maps, 3, 3, 3, 1); /* 3 (DA3) -> PHY3.1 */
+			}
+		}
 	} while (0);
 
 	return des_pdata;
