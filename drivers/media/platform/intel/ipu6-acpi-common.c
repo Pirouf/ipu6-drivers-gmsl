@@ -439,9 +439,10 @@ int ipu_acpi_get_cam_data(struct device *dev,
 	sensor->lanes = sensor_data.lanes;
 	sensor->pprval = sensor_data.pprval;
 	sensor->pprunit = sensor_data.pprunit;
+	sensor->degree = sensor_data.degree;
 
-	pr_info("IPU6 ACPI: SSDB: name %s. link %d. lanes %d. pprval %d. pprunit %x",
-		dev_name(dev), sensor->link, sensor->lanes, sensor->pprval, sensor->pprunit);
+	pr_info("IPU6 ACPI: SSDB: name %s. link %d. lanes %d. pprval %d. pprunit %x. degree %u",
+		dev_name(dev), sensor->link, sensor->lanes, sensor->pprval, sensor->pprunit, sensor->degree);
 
 	/* I2C */
 	ret = ipu_acpi_get_i2c_info(dev, sensor->i2c, ARRAY_SIZE(sensor->i2c), &sensor->i2c_num);

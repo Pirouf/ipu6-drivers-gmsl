@@ -62,6 +62,7 @@ struct serdes_platform_data {
 	unsigned int deser_nlanes;
 	unsigned int ser_nlanes;
 	struct i2c_board_info *deser_board_info;
+        unsigned int des_port;
 };
 
 struct serdes_subdev_info {
@@ -72,6 +73,7 @@ struct serdes_subdev_info {
 	unsigned short ser_alias;
 	char suffix[5]; /* suffix for subdevs */
 	int aggregated_link;
+	unsigned short ser_phys_addr;
 };
 
 struct serdes_module_pdata {

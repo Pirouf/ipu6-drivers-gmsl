@@ -694,7 +694,7 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 			   ( serdes_info.des_map_addr == serdes_info.des_map_addr_2 ) &&
 			   ( !strcmp(serdes_info.i2c_adapter_bdf, serdes_info.i2c_adapter_bdf_2))) {
 			serdes_sdinfo[i].aggregated_link = 1;
-			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1;
+			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1 + (*pdata)->des_port;
 			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
 				serdes_name,
 				serdes_suffix,
@@ -703,25 +703,33 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 			   ( serdes_info.sensor_map_addr == serdes_info.sensor_map_addr_2 ) &&
 			   ( !strcmp(serdes_info.i2c_adapter_bdf, serdes_info.i2c_adapter_bdf_2))) {
 			serdes_sdinfo[i].aggregated_link = 1;
-			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1;
+			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + 1 + (*pdata)->des_port;
 			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
 				serdes_name,
 				serdes_suffix,
 				serdes_info.deser_num);
 		} else if (i >= 1) {
 			serdes_sdinfo[i].aggregated_link = i;
-			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + i;
+			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + i + (*pdata)->des_port;
 			pr_info("IPU6 ACPI: Add namespacing %s %c, on aggregated-link sensors %d",
 				serdes_name,
 				serdes_suffix,
 				serdes_info.deser_num);
+		} else if ((*pdata)->des_port > 0 && !strcmp(serdes_name, "d4xx")) {
+			serdes_sdinfo[i].aggregated_link = 0;
+			serdes_suffix = (*pdata)->suffix + SUFFIX_BASE_OFFSET + (*pdata)->des_port;
 		} else {
 			serdes_sdinfo[i].aggregated_link = 0;
-			serdes_suffix = (*pdata)->suffix + i;
+			serdes_suffix = (*pdata)->suffix + i + (*pdata)->des_port;
 		}
+
+		if (!strcmp(serdes_name, "max96712"))
+			serdes_suffix -= 0x20; // capitalize the serdes suffixes if 4x GMSL deserializer
 
 		snprintf(serdes_sdinfo[i].suffix, sizeof(serdes_sdinfo[i].suffix), "%c",
 			 serdes_suffix);
+
+		serdes_sdinfo[i].ser_phys_addr = 0x40;
 	}
 
 	(*pdata)->subdev_info = serdes_sdinfo;
@@ -744,7 +752,8 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		unsigned int deser_lanes,
 		bool is_dummy,
 		enum connection_type connect,
-		u32 link_freq)
+		u32 link_freq,
+		int degree)
 {
 	if (connect == TYPE_DIRECT) {
 		struct sensor_platform_data *pdata;
@@ -776,6 +785,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		(*sensor_sd)->i2c.board_info.platform_data = pdata;
 	} else if (connect == TYPE_SERDES) {
 		struct serdes_platform_data *pdata;
+		u32 des_port = 0;
 
 		pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 		if (!pdata)
@@ -789,18 +799,27 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 			pr_info("IPU6 ACPI: create %s %c, on TI960 deserializer port %d",
 				sensor_name, pdata->suffix, port);
 			set_ti960_gpio(ctl_data, &pdata);
-		} else if (serdes_name && port >= 0 && subdev_num >= 2) {
-			pdata->suffix = port + SUFFIX_BASE + 1;
-			pr_info("IPU6 ACPI: create %s %c, on %s aggregated-link deserializer port %d",
-				sensor_name, pdata->suffix, serdes_name, serdes_info.deser_num);
-		} else if (serdes_name && port >= 0) {
-			pdata->suffix = port + SUFFIX_BASE + 1;
-			pr_info("IPU6 ACPI: create %s %c, on %s deserializer port %d",
-				sensor_name, pdata->suffix, serdes_name, serdes_info.deser_num);
+                /* use ascii */
 		} else if (port >= 0) {
-			pdata->suffix = port + SUFFIX_BASE + 1;
-			pr_info("IPU6 ACPI: create %s on mipi port %d",
-				sensor_name, port);
+
+			if (degree == 90 ||
+			    degree == 180 ||
+			    degree == 14) // 14 is equal to 270 (e.g. 255 byte overflow + 15)
+				des_port = (degree == 14) ? 3 :(degree / 90);
+
+                        pdata->suffix = port + SUFFIX_BASE + 1;
+
+			if (serdes_name && subdev_num >= 2)
+				pr_info("IPU6 ACPI: create %s %c, on %s aggregated-link deserializer port %d",
+					sensor_name, pdata->suffix, serdes_name, serdes_info.deser_num);
+			else if (serdes_name)
+				pr_info("IPU6 ACPI: create %s %c, on %s deserializer port %d",
+					sensor_name, pdata->suffix, serdes_name, serdes_info.deser_num);
+			else if (port >= 0)
+				pr_info("IPU6 ACPI: create %s on mipi port %d",
+					sensor_name, port);
+			else
+				pr_warn("IPU6 ACPI: unamed SerDes on : %d", port);
 		} else
 			pr_err("IPU6 ACPI: No SerDes or Invalid MIPI Port : %d", port);
 
@@ -811,6 +830,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		pdata->link_freq_mbps = link_freq;
 		pdata->deser_nlanes = deser_lanes;
 		pdata->ser_nlanes = lanes;
+                pdata->des_port = des_port;
 		set_serdes_subdev(sensor_sd, dev, &pdata, sensor_name, serdes_name, hid_name, lanes, addr, subdev_num);
 
 		(*sensor_sd)->i2c.board_info.platform_data = pdata;
@@ -891,7 +911,7 @@ static int populate_dummy(struct device *dev,
 	set_i2c(&dummy, dev, sensor_name, addr_dummy, cam_data->i2c[0].bdf);
 
 	ret = set_pdata(&dummy, dev, sensor_name, NULL, hid_name, ctl_data, cam_data->pprval,
-		cam_data->lanes, addr_dummy, 0, 0, true, connect, link_freq);
+			cam_data->lanes, addr_dummy, 0, 0, true, connect, link_freq,  cam_data->degree);
 	if (ret) {
 		kfree(dummy);
 		return ret;
@@ -979,7 +999,7 @@ static int populate_sensor_pdata(struct device *dev,
 	/* Use last I2C device */
 	ret = set_pdata(sensor_sd, dev, sensor_name, serdes_name, hid_name, ctl_data, cam_data->link,
 		cam_data->lanes, cam_data->i2c[cam_data->i2c_num - 1].addr,
-		cam_data->pprunit, cam_data->pprval, false, connect, link_freq);
+			cam_data->pprunit, cam_data->pprval, false, connect, link_freq, cam_data->degree);
 	if (ret)
 		return ret;
 
