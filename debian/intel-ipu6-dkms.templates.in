@@ -1,0 +1,7 @@
+Template: intel-ipu6-dkms/max9x
+Type: select
+Choices: @marchlist@
+Default: @marchdefault@
+Description: Select GMSL2 Deserializer [defaut:max9296]
+ dkms build driver d4xx either for max9296 or max9672x.
+ 

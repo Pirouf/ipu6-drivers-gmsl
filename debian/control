@@ -1,0 +1,30 @@
+Source: ipu6-drivers
+Section: kernel
+Priority: optional
+Maintainer: ECI Maintainer <eci.maintainer@intel.com>
+XSBC-Original-Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13),
+ pkg-config,
+ dh-modaliases,
+ dkms,
+ dh-sequence-dkms,
+ quilt,
+Standards-Version: 4.6.1.0
+Homepage: https://github.com/intel/ipu6-drivers
+Vcs-Browser: https://github.com/intel/ipu6-drivers/tree/master
+Vcs-Git: https://github.com/intel/ipu6-drivers.git
+
+Package: intel-ipu6-dkms
+Architecture: amd64
+Depends:
+ dkms,
+ pahole,
+ ${misc:Depends},
+Provides: ipu6-modules
+Conflicts: intel-ipu-dkms
+Replaces: intel-ipu-dkms
+Description: Intel Integrated Image Processing Unit 6 (IPU6) driver
+ This package provides kernel drivers for GSML2 cameras through the Intel IPU6
+ on Intel Tiger Lake, Alder Lake, Raptor Lake, Meteor Lake and Arrow lake platforms.
