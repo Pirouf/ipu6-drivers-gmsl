@@ -979,13 +979,13 @@ out_media_device_unregister:
 static void isys_unregister_devices(struct ipu_isys *isys)
 {
 	isys_unregister_subdevices(isys);
-#if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU_USE_PLATFORMDATA)
-	isys_unregister_ext_subdevs(isys);
-#endif
 	v4l2_device_unregister(&isys->v4l2_dev);
 	media_device_unregister(&isys->media_dev);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
 	media_device_cleanup(&isys->media_dev);
+#endif
+#if IS_ENABLED(CONFIG_VIDEO_INTEL_IPU_USE_PLATFORMDATA)
+	isys_unregister_ext_subdevs(isys);
 #endif
 }
 
